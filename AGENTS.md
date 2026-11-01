@@ -44,6 +44,11 @@ Run from the repo root.
 - The agent opens the PR (`pr` skill, `gh pr create --base main`) after checks and review; humans review and merge.
 - The `initial` branch preserves the blank repository baseline; new work follows the flow above.
 
+## GPG signing
+
+- Keep GPG signing enabled for every commit and push. During agentic work, make the first normal signed attempt without prior confirmation; it may succeed if the user's key is already unlocked.
+- If signing waits for the user's key unlock or times out, preserve the changes and pause. Retry only after the user confirms the key is unlocked.
+
 ## Verification
 
 - Inner loop: `pnpm test` for changed behavior. Changed behavior gets a regression test.
