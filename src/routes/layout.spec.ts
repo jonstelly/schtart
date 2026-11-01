@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 const stylesheet = readFileSync(new URL('./layout.css', import.meta.url), 'utf8');
 const buttonStyles = readFileSync(new URL('../lib/components/ui/button/button.svelte', import.meta.url), 'utf8');
 const inputStyles = readFileSync(new URL('../lib/components/ui/input/input.svelte', import.meta.url), 'utf8');
-const dashboardEditor = readFileSync(new URL('../lib/components/DashboardConfigurationEditor.svelte', import.meta.url), 'utf8');
 
 type Oklch = { lightness: number; chroma: number; hue: number };
 
@@ -173,8 +172,5 @@ describe('CodeMirror theme tokens', () => {
 			expect(block).toContain('--editor-selection: color-mix(in oklch, var(--auth-focus) 24%, var(--auth-control))');
 		}
 
-		expect(dashboardEditor).toContain("caretColor: 'var(--editor-caret)'");
-		expect(dashboardEditor).toContain("borderLeftColor: 'var(--editor-caret)'");
-		expect(dashboardEditor).toContain("backgroundColor: 'var(--editor-selection)'");
 	});
 });

@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { defaultKeymap } from '@codemirror/commands';
 	import { HighlightStyle, foldGutter, indentOnInput, syntaxHighlighting } from '@codemirror/language';
-	import { Compartment, EditorState } from '@codemirror/state';
-	import { EditorView, drawSelection, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
+	import { EditorState } from '@codemirror/state';
+	import { EditorView, drawSelection, highlightActiveLine, lineNumbers } from '@codemirror/view';
 	import { yaml } from '@codemirror/lang-yaml';
 	import { tags } from '@lezer/highlight';
 	import type { EffectiveDashboardConfiguration } from '../dashboard';
+	import { createDashboardEditorBehavior } from './dashboard-configuration-editor';
 	import { Button } from './ui/button';
 
 	let {
@@ -39,8 +39,7 @@
 	onMount(() => {
 		dialogElement.showModal();
 		draft = initialYaml;
-		const themeCompartment = new Compartment();
-		const initialDarkMode = document.documentElement.classList.contains('dark');
+		const editorBehavior = createDashboardEditorBehavior(document.documentElement);
 		editorView = new EditorView({
 			state: EditorState.create({
 				doc: initialYaml,
@@ -52,49 +51,20 @@
 					indentOnInput(),
 					yaml(),
 					syntaxHighlighting(yamlHighlightStyle),
-					keymap.of(defaultKeymap),
-					themeCompartment.of(EditorView.darkTheme.of(initialDarkMode)),
+					...editorBehavior.extensions,
 					EditorView.lineWrapping,
-					EditorView.contentAttributes.of({
-						'aria-labelledby': 'dashboard-yaml-label',
-						'aria-describedby': 'dashboard-yaml-help'
-					}),
 					EditorView.updateListener.of((update) => {
 						if (update.docChanged) draft = update.state.doc.toString();
 					}),
-					EditorView.theme({
-						'&': {
-							backgroundColor: 'var(--control)',
-							color: 'var(--control-foreground)',
-							fontSize: '0.82rem',
-							minHeight: '22rem'
-						},
-						'.cm-content': { minHeight: '22rem', padding: '1rem 0', caretColor: 'var(--editor-caret)' },
-						'.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--editor-caret)' },
-						'.cm-selectionBackground': { backgroundColor: 'var(--editor-selection)' },
-						'.cm-gutters': {
-							backgroundColor: 'var(--muted)',
-							color: 'var(--muted-foreground)',
-							borderRight: '1px solid var(--border)'
-						},
-						'.cm-activeLine': { backgroundColor: 'color-mix(in oklch, var(--primary) 8%, transparent)' },
-						'&.cm-focused': { outline: '2px solid var(--ring)', outlineOffset: '-2px' }
-					})
 				]
 			}),
 			parent: editorHost
 		});
-		const themeObserver = new MutationObserver(() => {
-			const isDark = document.documentElement.classList.contains('dark');
-			if (editorView.state.facet(EditorView.darkTheme) !== isDark) {
-				editorView.dispatch({ effects: themeCompartment.reconfigure(EditorView.darkTheme.of(isDark)) });
-			}
-		});
-		themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+		const stopObservingTheme = editorBehavior.observeTheme(editorView);
 		editorView.focus();
 
 		return () => {
-			themeObserver.disconnect();
+			stopObservingTheme();
 			editorView.destroy();
 		};
 	});
