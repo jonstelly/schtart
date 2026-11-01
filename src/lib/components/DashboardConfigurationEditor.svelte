@@ -103,7 +103,10 @@
 		errors = [];
 		notice = '';
 		try {
-			const response = await fetch('/api/configuration', { method: 'DELETE' });
+			const response = await fetch('/api/configuration', {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' }
+			});
 			const result = await response.json();
 			if (!response.ok) {
 				errors = Array.isArray(result.errors) ? result.errors : ['The saved configuration could not be reset.'];

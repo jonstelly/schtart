@@ -59,6 +59,20 @@ describe('integration database safety', () => {
 		expect(result.stderr).toMatch(/database override/i);
 	});
 
+	it.each([
+		'postgres://user:password@localhost:5432/production',
+		'postgres://user:password@localhost:5432/schtart_test?db=production'
+	])('refuses unsafe database URLs before starting browser tests: %s', (url) => {
+		const result = spawnSync(process.execPath, [resolve('scripts/test-browser.mjs')], {
+			encoding: 'utf8',
+			env: { ...process.env, TEST_DATABASE_URL: url }
+		});
+
+		expect(result.status).not.toBe(0);
+		expect(result.stderr).toMatch(/(?:ends with "test"|database override)/i);
+		expect(result.stderr).not.toMatch(/ECONNREFUSED|playwright/i);
+	});
+
 	it('requires the application database URL to match the designated test URL', () => {
 		expect(() =>
 			assertSafeIntegrationDatabase(

@@ -94,7 +94,10 @@
 		signingOut = true;
 		signOutError = '';
 		try {
-			const response = await fetch('/api/auth/sign-out', { method: 'POST' });
+			const response = await fetch('/api/auth/sign-out', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' }
+			});
 			if (response.ok) {
 				window.location.assign('/login');
 				return;

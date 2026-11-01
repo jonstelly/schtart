@@ -13,6 +13,8 @@
 		"test:unit": "vitest",
 		"test": "vitest run",
 		"test:integration": "node scripts/test-integration.mjs",
+		"test:browser": "node scripts/test-browser.mjs",
+		"test:docker-lifecycle": "node scripts/test-docker-lifecycle.mjs",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "node scripts/db-migrate.mjs"
 	},
@@ -21,6 +23,7 @@
 		"@fontsource/instrument-serif": "^5.3.0",
 		"@internationalized/date": "^3.12.4",
 		"@lucide/svelte": "^1.66.0",
+		"@playwright/test": "^1.64.1",
 		"@sveltejs/adapter-node": "^6.0.1",
 		"@sveltejs/kit": "^3.0.0",
 		"@sveltejs/vite-plugin-svelte": "^7.2.0",
