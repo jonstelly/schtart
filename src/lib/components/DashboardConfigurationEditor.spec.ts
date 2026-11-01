@@ -159,4 +159,18 @@ describe('dashboard configuration editor behavior', () => {
 			expect(attributes).not.toMatch(/\btabindex=/i);
 		}
 	});
+
+	it('reuses the editor for the server default without exposing the personal reset action', () => {
+		const { body } = render(DashboardConfigurationEditor, {
+			props: { initialYaml: 'version: 1\n', mode: 'admin-default', onClose() {}, onSaved() {} }
+		});
+		const buttons = [...body.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map(([, , content]) =>
+			content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+		);
+
+		expect(body).toContain('Set the shared starting point');
+		expect(body).toContain('users who follow the default');
+		expect(body).not.toContain('Reset to server default');
+		expect(buttons).toEqual(['Close', 'Cancel', 'Save shared default']);
+	});
 });

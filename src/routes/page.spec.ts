@@ -36,7 +36,7 @@ describe('authenticated start page theme continuity', () => {
 		expect(page).toContain('text-heading');
 		expect(page).toContain('text-muted-foreground');
 		expect(page).toContain('text-destructive');
-		expect(page).toContain('aria-label="Dashboard pages"');
+		expect(page).toContain('aria-label="Main navigation"');
 		expect(page).toContain("import ThemeToggle from '../lib/components/ThemeToggle.svelte'");
 		expect(page).toContain("import { Button } from '#lib/components/ui/button'");
 		expect(page).not.toMatch(/#[\da-f]{3,8}\b/i);
@@ -53,5 +53,12 @@ describe('responsive dashboard controls', () => {
 	it('keeps the sign-out control named when its visual label is hidden on mobile', () => {
 		expect(page).toContain("aria-label={signingOut ? 'Signing out' : 'Sign out'}");
 		expect(page).toContain('<span class="hidden sm:inline">{signingOut ?');
+	});
+
+	it('exposes the Admin tab only to administrators and starts with one default-page setting', () => {
+		expect(page).toContain('{#if data.isAdministrator}');
+		expect(page).toContain('aria-label="Admin settings"');
+		expect(page).toContain('Default start page');
+		expect(page).toContain("mode=\"admin-default\"");
 	});
 });

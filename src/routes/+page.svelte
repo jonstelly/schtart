@@ -18,10 +18,14 @@
 	let configuration = $state<DashboardConfiguration | null>(null);
 	let configurationYaml = $state('');
 	let configurationSource = $state<'default' | 'user'>('default');
-	let activePage = $state<DashboardPageName>('home');
+	let activePage = $state<DashboardPageName | 'admin'>('home');
 	let loading = $state(true);
 	let pageError = $state('');
 	let editorOpen = $state(false);
+	let adminDefaultYaml = $state('');
+	let loadingAdminDefault = $state(false);
+	let adminDefaultError = $state('');
+	let adminEditorOpen = $state(false);
 	let signingOut = $state(false);
 	let signOutError = $state('');
 	let linkingIdentity = $state(false);
@@ -33,9 +37,13 @@
 		sports: 'Scores and fixtures, presented as examples.',
 		monitoring: 'A simple view of service health examples.'
 	};
-	const activePageDescription = $derived(pageDescriptions[activePage]);
-	const activePageLabel = $derived(DASHBOARD_PAGE_LABELS[activePage]);
-	const activeLayout = $derived(configuration?.pages[activePage]);
+	const activePageDescription = $derived(
+		activePage === 'admin'
+			? 'A considered starting point for everyone who follows the shared default.'
+			: pageDescriptions[activePage]
+	);
+	const activePageLabel = $derived(activePage === 'admin' ? 'Admin' : DASHBOARD_PAGE_LABELS[activePage]);
+	const activeLayout = $derived(activePage === 'admin' ? undefined : configuration?.pages[activePage]);
 
 	onMount(() => {
 		void loadConfiguration();
@@ -59,6 +67,27 @@
 		configuration = value.configuration;
 		configurationYaml = value.yaml;
 		configurationSource = value.source;
+	}
+
+	async function openAdmin() {
+		activePage = 'admin';
+		editorOpen = false;
+		loadingAdminDefault = true;
+		adminDefaultError = '';
+		try {
+			const response = await fetch('/api/admin/default-configuration');
+			const result = await response.json();
+			if (!response.ok) throw new Error(result.message ?? 'The shared default could not be loaded.');
+			adminDefaultYaml = result.yaml as string;
+		} catch (error) {
+			adminDefaultError = error instanceof Error ? error.message : 'The shared default could not be loaded.';
+		} finally {
+			loadingAdminDefault = false;
+		}
+	}
+
+	function applyAdminDefault(value: EffectiveDashboardConfiguration) {
+		adminDefaultYaml = value.yaml;
 	}
 
 	async function signOut() {
@@ -137,11 +166,13 @@
 							<span class="hidden lg:inline">{linkingIdentity ? 'Opening provider…' : 'Link identity'}</span>
 						</Button>
 					{/if}
-					<Button variant="outline" size="sm" class="gap-2" onclick={() => (editorOpen = true)}>
-						<Settings2 aria-hidden="true" size={15} />
-						<span class="hidden sm:inline">Edit layout</span>
-						<span class="sm:hidden">Layout</span>
-					</Button>
+					{#if activePage !== 'admin'}
+						<Button variant="outline" size="sm" class="gap-2" onclick={() => (editorOpen = true)}>
+							<Settings2 aria-hidden="true" size={15} />
+							<span class="hidden sm:inline">Edit layout</span>
+							<span class="sm:hidden">Layout</span>
+						</Button>
+					{/if}
 					<ThemeToggle />
 					<Button
 						variant="ghost"
@@ -167,24 +198,26 @@
 			<div>
 				<div class="mb-4 inline-flex items-center gap-2 text-[0.67rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
 					<LayoutGrid aria-hidden="true" size={14} class="text-primary" />
-					Your personal starting point
+					{activePage === 'admin' ? 'Shared starting point' : 'Your personal starting point'}
 				</div>
 				<h1 class="font-heading text-5xl leading-[0.95] font-normal tracking-[-0.04em] text-heading sm:text-6xl">
 					{activePageLabel}<span class="text-heading-accent">.</span>
 				</h1>
 				<p class="mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">{activePageDescription}</p>
 			</div>
-			<div class="flex items-center gap-2 pb-1 text-xs text-muted-foreground">
-				<span class="size-1.5 rounded-full bg-primary"></span>
-				{#if configurationSource === 'user'}
-					Your personal layout
-				{:else}
-					Following the shared default
-				{/if}
-			</div>
+			{#if activePage !== 'admin'}
+				<div class="flex items-center gap-2 pb-1 text-xs text-muted-foreground">
+					<span class="size-1.5 rounded-full bg-primary"></span>
+					{#if configurationSource === 'user'}
+						Your personal layout
+					{:else}
+						Following the shared default
+					{/if}
+				</div>
+			{/if}
 		</div>
 
-		<nav class="-mx-1 flex gap-1 overflow-x-auto py-4" aria-label="Dashboard pages">
+		<nav class="-mx-1 flex gap-1 overflow-x-auto py-4" aria-label="Main navigation">
 			{#each DASHBOARD_PAGES as page}
 				<button
 					type="button"
@@ -195,9 +228,58 @@
 					{DASHBOARD_PAGE_LABELS[page]}
 				</button>
 			{/each}
+			{#if data.isAdministrator}
+				<button
+					type="button"
+					aria-current={activePage === 'admin' ? 'page' : undefined}
+					onclick={openAdmin}
+					class="shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background {activePage === 'admin' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+				>
+					Admin
+				</button>
+			{/if}
 		</nav>
 
-		{#if loading}
+		{#if activePage === 'admin'}
+			<section class="grid gap-7 md:grid-cols-[13rem_minmax(0,1fr)]" aria-label="Administrator settings">
+				<aside class="border-b border-border/75 pb-4 md:border-b-0 md:border-r md:pb-0 md:pr-5">
+					<p class="mb-3 px-3 text-[0.65rem] font-semibold uppercase tracking-[0.17em] text-muted-foreground">Admin</p>
+					<nav aria-label="Admin settings" class="flex gap-1 md:flex-col">
+						<button
+							type="button"
+							aria-current="page"
+							class="rounded-lg bg-primary/10 px-3 py-2 text-left text-sm font-medium text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+						>
+							Default start page
+						</button>
+					</nav>
+				</aside>
+				<div class="min-w-0">
+					{#if loadingAdminDefault}
+						<div class="rounded-xl border border-border bg-card px-6 py-8 text-sm text-muted-foreground" aria-busy="true">
+							Loading the shared default…
+						</div>
+					{:else if adminDefaultError}
+						<div class="rounded-xl border border-border bg-card px-6 py-8 text-center">
+							<p class="text-sm text-destructive" role="alert">{adminDefaultError}</p>
+							<Button class="mt-4" variant="outline" onclick={openAdmin}>Try again</Button>
+						</div>
+					{:else}
+						<section class="rounded-xl border border-border bg-card px-6 py-7 sm:px-8">
+							<p class="text-[0.65rem] font-semibold uppercase tracking-[0.17em] text-link">Shared configuration</p>
+							<h2 class="mt-2 font-heading text-3xl font-normal tracking-tight text-heading">Default start page</h2>
+							<p class="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+								This is the complete starting layout for users without a personal override. Your changes are picked up on their next page load and never replace saved personal layouts.
+							</p>
+							<div class="mt-6 flex flex-col gap-4 border-t border-border/75 pt-5 sm:flex-row sm:items-center sm:justify-between">
+								<p class="text-xs text-muted-foreground">Validated YAML · changes are saved immediately</p>
+								<Button onclick={() => (adminEditorOpen = true)}>Edit default start page</Button>
+							</div>
+						</section>
+					{/if}
+				</div>
+			</section>
+		{:else if loading}
 			<div class="grid gap-5 lg:grid-cols-2" aria-label="Loading dashboard" aria-busy="true">
 				{#each [1, 2, 3, 4] as placeholder}
 					<div class="h-52 animate-pulse rounded-xl border border-border bg-card/70" aria-hidden="true"></div>
@@ -222,10 +304,12 @@
 			</div>
 		{/if}
 
-		<footer class="mt-10 flex flex-col gap-2 border-t border-border/75 pt-4 text-xs leading-5 text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-			<p>Example widgets are placeholders. No external feeds or monitoring sources are connected.</p>
-			<p>Private by design <span class="mx-1 text-border">·</span> Pages are yours to arrange</p>
-		</footer>
+		{#if activePage !== 'admin'}
+			<footer class="mt-10 flex flex-col gap-2 border-t border-border/75 pt-4 text-xs leading-5 text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+				<p>Example widgets are placeholders. No external feeds or monitoring sources are connected.</p>
+				<p>Private by design <span class="mx-1 text-border">·</span> Pages are yours to arrange</p>
+			</footer>
+		{/if}
 	</div>
 
 	{#if signOutError}
@@ -236,6 +320,14 @@
 			initialYaml={configurationYaml}
 			onClose={() => (editorOpen = false)}
 			onSaved={applyConfiguration}
+		/>
+	{/if}
+	{#if adminEditorOpen && adminDefaultYaml}
+		<DashboardConfigurationEditor
+			initialYaml={adminDefaultYaml}
+			mode="admin-default"
+			onClose={() => (adminEditorOpen = false)}
+			onSaved={applyAdminDefault}
 		/>
 	{/if}
 </main>

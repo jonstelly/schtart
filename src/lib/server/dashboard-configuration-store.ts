@@ -21,6 +21,29 @@ export async function ensureDashboardServerDefault() {
 	return serverDefault.yaml;
 }
 
+export async function getServerDefaultDashboardConfiguration() {
+	const yaml = await ensureDashboardServerDefault();
+	const validation = validateDashboardConfiguration(yaml);
+	if (!validation.success) {
+		throw new Error(`Stored dashboard server default is invalid: ${validation.errors.join('; ')}`);
+	}
+	return { yaml, source: 'default' as const, configuration: validation.configuration };
+}
+
+export async function saveServerDefaultDashboardConfiguration(yaml: string) {
+	const validation = validateDashboardConfiguration(yaml);
+	if (!validation.success) throw new Error('Cannot save an invalid dashboard server default.');
+
+	await ensureDashboardServerDefault();
+	const [savedDefault] = await db
+		.update(dashboardServerDefault)
+		.set({ yaml, updatedAt: new Date() })
+		.where(eq(dashboardServerDefault.id, 1))
+		.returning({ yaml: dashboardServerDefault.yaml });
+	if (!savedDefault) throw new Error('The dashboard server default could not be saved.');
+	return { yaml: savedDefault.yaml, source: 'default' as const, configuration: validation.configuration };
+}
+
 export async function getEffectiveDashboardConfiguration(userId: string): Promise<EffectiveDashboardConfiguration> {
 	const defaultYaml = await ensureDashboardServerDefault();
 	const [override] = await db

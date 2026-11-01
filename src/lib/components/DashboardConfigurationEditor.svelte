@@ -12,11 +12,13 @@
 	let {
 		initialYaml,
 		onClose,
-		onSaved
+		onSaved,
+		mode = 'user'
 	}: {
 		initialYaml: string;
 		onClose: () => void;
 		onSaved: (configuration: EffectiveDashboardConfiguration) => void;
+		mode?: 'user' | 'admin-default';
 	} = $props();
 
 	let dialogElement: HTMLDialogElement;
@@ -27,6 +29,9 @@
 	let resetting = $state(false);
 	let errors = $state<string[]>([]);
 	let notice = $state('');
+	const configurationEndpoint = $derived(
+		mode === 'admin-default' ? '/api/admin/default-configuration' : '/api/configuration'
+	);
 	const yamlHighlightStyle = HighlightStyle.define([
 		{ tag: tags.propertyName, color: 'var(--link)' },
 		{ tag: tags.string, color: 'var(--primary)' },
@@ -74,7 +79,7 @@
 		errors = [];
 		notice = '';
 		try {
-			const response = await fetch('/api/configuration', {
+			const response = await fetch(configurationEndpoint, {
 				method: 'PUT',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ yaml: draft })
@@ -85,7 +90,7 @@
 				return;
 			}
 			onSaved(result as EffectiveDashboardConfiguration);
-			notice = 'Your complete page layout has been saved.';
+			notice = mode === 'admin-default' ? 'The shared default has been updated.' : 'Your complete page layout has been saved.';
 		} catch {
 			errors = ['The server could not be reached. Your saved configuration has not changed.'];
 		} finally {
@@ -128,9 +133,17 @@
 	<div class="flex max-h-[min(92vh,58rem)] flex-col overflow-hidden">
 		<header class="flex items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-7">
 			<div>
-				<p class="text-[0.65rem] font-semibold uppercase tracking-[0.17em] text-link">Personal layout</p>
-				<h2 id="dashboard-editor-title" class="mt-1 font-heading text-3xl font-normal tracking-tight text-heading">Shape your pages</h2>
-				<p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Edit one complete YAML document. Saving replaces your entire layout; invalid changes leave the last saved version untouched.</p>
+			<p class="text-[0.65rem] font-semibold uppercase tracking-[0.17em] text-link">
+				{mode === 'admin-default' ? 'Administrator settings' : 'Personal layout'}
+			</p>
+			<h2 id="dashboard-editor-title" class="mt-1 font-heading text-3xl font-normal tracking-tight text-heading">
+				{mode === 'admin-default' ? 'Set the shared starting point' : 'Shape your pages'}
+			</h2>
+			<p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+				{mode === 'admin-default'
+					? 'Edit the complete YAML document shown to users who follow the default. Personal overrides remain independent; invalid changes leave the saved default untouched.'
+					: 'Edit one complete YAML document. Saving replaces your entire layout; invalid changes leave the last saved version untouched.'}
+			</p>
 			</div>
 			<Button variant="ghost" size="sm" onclick={() => dialogElement.close()}>Close</Button>
 		</header>
@@ -163,13 +176,17 @@
 		</div>
 
 		<footer class="flex flex-col-reverse justify-between gap-3 border-t border-border bg-muted/35 px-5 py-4 sm:flex-row sm:items-center sm:px-7">
-			<Button variant="outline" onclick={resetConfiguration} disabled={resetting || saving}>
-				{resetting ? 'Resetting…' : 'Reset to server default'}
-			</Button>
+			{#if mode === 'user'}
+				<Button variant="outline" onclick={resetConfiguration} disabled={resetting || saving}>
+					{resetting ? 'Resetting…' : 'Reset to server default'}
+				</Button>
+			{:else}
+				<span class="text-xs text-muted-foreground">Saved defaults apply on each follower’s next page load.</span>
+			{/if}
 			<div class="flex items-center justify-end gap-2">
 				<Button variant="ghost" onclick={() => dialogElement.close()} disabled={saving || resetting}>Cancel</Button>
 				<Button onclick={saveConfiguration} disabled={saving || resetting}>
-					{saving ? 'Saving…' : 'Save complete layout'}
+					{saving ? 'Saving…' : mode === 'admin-default' ? 'Save shared default' : 'Save complete layout'}
 				</Button>
 			</div>
 		</footer>
