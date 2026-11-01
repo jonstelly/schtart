@@ -111,27 +111,27 @@
 
 	<div class="mx-auto grid w-full max-w-7xl items-center gap-10 px-5 pb-12 pt-4 sm:px-8 md:pt-8 lg:min-h-[calc(100svh-6.5rem)] lg:grid-cols-[1fr_0.82fr] lg:gap-16 lg:px-12 lg:pb-20">
 		<section class="flex flex-col justify-center" aria-label="About Schtart">
-			<div class="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-border/70 bg-card/60 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground shadow-sm backdrop-blur">
+			<div class="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground shadow-sm backdrop-blur">
 				<span class="size-1.5 rounded-full bg-primary shadow-[0_0_12px_color-mix(in_oklch,var(--primary)_80%,transparent)]"></span>
 				A personal starting point
 			</div>
-			<h1 class="max-w-2xl font-heading text-6xl leading-[0.95] font-normal tracking-[-0.045em] text-foreground sm:text-7xl lg:text-8xl">
-				Less noise.<br />More <span class="text-primary">of your day.</span>
+			<h1 class="max-w-2xl font-heading text-6xl leading-[0.95] font-normal tracking-[-0.045em] text-heading sm:text-7xl lg:text-8xl">
+				Less noise.<br />More <span class="text-heading-accent">of your day.</span>
 			</h1>
 			<p class="mt-6 max-w-md text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
 				A clear place to begin, built around the things you care about.
 			</p>
-			<div class="mt-12 flex items-center gap-3 text-xs font-medium tracking-wide text-muted-foreground/80">
+			<div class="mt-12 flex items-center gap-3 text-xs font-medium tracking-wide text-muted-foreground">
 				<span class="h-px w-10 bg-primary/70"></span>
 				Your pages, your pace
 			</div>
 		</section>
 
 		<section class="w-full justify-self-end lg:max-w-[28rem]" aria-labelledby="page-title">
-			<Card.Root class="border-border/70 bg-card/90 shadow-2xl shadow-black/15 backdrop-blur-xl">
+			<Card.Root class="border-border bg-card shadow-2xl shadow-black/15 backdrop-blur-xl">
 				<Card.Header class="space-y-2 px-6 pb-3 pt-7 sm:px-8 sm:pt-8">
 					<p class="text-[0.67rem] font-semibold uppercase tracking-[0.17em] text-link">{copy.eyebrow}</p>
-					<Card.Title id="page-title" class="font-heading text-3xl leading-tight font-normal tracking-[-0.025em]">
+					<Card.Title id="page-title" class="font-heading text-heading text-3xl leading-tight font-normal tracking-[-0.025em]">
 						{copy.title}
 					</Card.Title>
 					<Card.Description class="text-sm leading-6 text-muted-foreground">{copy.intro}</Card.Description>
@@ -139,7 +139,7 @@
 
 				<Card.Content class="px-6 pb-7 sm:px-8 sm:pb-8">
 					{#if copy.warning}
-						<Alert.Root class="mb-5 border-primary/25 bg-primary/5 text-foreground">
+						<Alert.Root class="mb-5 border-border bg-notice text-foreground">
 							<ShieldAlert aria-hidden="true" class="text-primary" />
 							<Alert.Title class="text-sm font-semibold">Before you continue</Alert.Title>
 							<Alert.Description class="text-xs leading-5 text-muted-foreground">{copy.warning}</Alert.Description>
@@ -160,7 +160,7 @@
 								maxlength={isRegistration ? 30 : undefined}
 								pattern={isRegistration ? '[A-Za-z0-9_.]+' : undefined}
 								aria-describedby={isRegistration ? 'username-hint' : undefined}
-								class="h-11 bg-background/60 px-3"
+								class="h-11 px-3"
 							/>
 							{#if isRegistration}
 								<p id="username-hint" class="text-xs leading-5 text-muted-foreground">
@@ -180,7 +180,7 @@
 									autocomplete="email"
 									placeholder="you@example.com"
 									required
-									class="h-11 bg-background/60 px-3"
+									class="h-11 px-3"
 								/>
 							</div>
 						{/if}
@@ -197,7 +197,7 @@
 								required
 								minlength={isRegistration ? 12 : undefined}
 								aria-describedby={isRegistration ? 'password-hint' : undefined}
-								class="h-11 bg-background/60 px-3"
+								class="h-11 px-3"
 							/>
 							{#if isRegistration}
 								<p id="password-hint" class="text-xs leading-5 text-muted-foreground">
@@ -233,7 +233,7 @@
 					</p>
 				</Card.Content>
 			</Card.Root>
-			<p class="mt-4 px-4 text-center text-xs leading-5 text-muted-foreground/80">
+			<p class="mt-4 px-4 text-center text-xs leading-5 text-muted-foreground">
 				A calm, private starting point for the things that matter to you.
 			</p>
 		</section>
