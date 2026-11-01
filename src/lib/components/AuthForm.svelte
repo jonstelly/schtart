@@ -130,7 +130,7 @@
 		<section class="w-full justify-self-end lg:max-w-[28rem]" aria-labelledby="page-title">
 			<Card.Root class="border-border/70 bg-card/90 shadow-2xl shadow-black/15 backdrop-blur-xl">
 				<Card.Header class="space-y-2 px-6 pb-3 pt-7 sm:px-8 sm:pt-8">
-					<p class="text-[0.67rem] font-semibold uppercase tracking-[0.17em] text-primary">{copy.eyebrow}</p>
+					<p class="text-[0.67rem] font-semibold uppercase tracking-[0.17em] text-link">{copy.eyebrow}</p>
 					<Card.Title id="page-title" class="font-heading text-3xl leading-tight font-normal tracking-[-0.025em]">
 						{copy.title}
 					</Card.Title>
@@ -225,10 +225,10 @@
 					<p class="mt-6 text-center text-sm text-muted-foreground">
 						{#if isRegistration}
 							Already have an account?
-							<a class="ml-1 font-medium text-primary underline-offset-4 hover:underline" href="/login">Sign in</a>
+							<a class="ml-1 font-medium text-link underline-offset-4 hover:underline" href="/login">Sign in</a>
 						{:else}
 							New here?
-							<a class="ml-1 font-medium text-primary underline-offset-4 hover:underline" href="/register">Create an account</a>
+							<a class="ml-1 font-medium text-link underline-offset-4 hover:underline" href="/register">Create an account</a>
 						{/if}
 					</p>
 				</Card.Content>
