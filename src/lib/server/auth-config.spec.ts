@@ -16,7 +16,7 @@ describe('auth configuration', () => {
 		});
 	});
 
-	it('accepts password plus OIDC configuration and normalizes its issuer URL', () => {
+	it('preserves the configured issuer identity and derives a normalized discovery URL', () => {
 		expect(validateAuthConfiguration(credentials)).toMatchObject({
 			passwordEnabled: true,
 			oidc: {
@@ -25,6 +25,19 @@ describe('auth configuration', () => {
 				clientId: 'schtart',
 				clientSecret: 'client-secret'
 			}
+		});
+	});
+
+	it('preserves trailing slash, host casing, explicit port, and escaped path in the issuer identity', () => {
+		const configuration = validateAuthConfiguration({
+			...credentials,
+			OIDC_ISSUER_URL: 'https://Identity.Example.Test:443/tenant%2Fblue/'
+		});
+
+		expect(configuration.oidc).toMatchObject({
+			issuerUrl: 'https://Identity.Example.Test:443/tenant%2Fblue/',
+			discoveryUrl:
+				'https://identity.example.test/tenant%2Fblue/.well-known/openid-configuration'
 		});
 	});
 
@@ -55,6 +68,9 @@ describe('auth configuration', () => {
 		expect(() =>
 			validateAuthConfiguration({ ...credentials, OIDC_ISSUER_URL: 'not a URL' })
 		).toThrow(/OIDC_ISSUER_URL must be a valid absolute HTTP\(S\) URL/);
+		expect(() =>
+			validateAuthConfiguration({ ...credentials, OIDC_ISSUER_URL: ' https://identity.example.test' })
+		).toThrow(/OIDC_ISSUER_URL must not contain surrounding whitespace/);
 	});
 
 	it('parses the optional registration allowlist as exact normalized addresses', () => {

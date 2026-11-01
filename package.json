@@ -50,6 +50,7 @@
 	"dependencies": {
 		"better-auth": "^1.7.14",
 		"drizzle-orm": "^0.45.4",
+		"jose": "^6.2.14",
 		"postgres": "^4.0.0"
 	}
 }

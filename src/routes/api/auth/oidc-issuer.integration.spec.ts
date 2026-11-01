@@ -103,12 +103,12 @@ describe('OIDC configured issuer identity', () => {
 	beforeAll(async () => {
 		await prepareIntegrationDatabase();
 		await provider.start();
-		const discoveredIssuer = `${provider.issuerUrl}/unexpected-issuer`;
-		provider.setDiscoveryIssuer(discoveredIssuer);
+		provider.setDiscoveryIssuer(`${provider.issuerUrl}/unexpected-issuer`);
+		provider.setOmitIdTokenEmail(true);
 		process.env.BETTER_AUTH_SECRET = 'oidc-issuer-integration-test-secret-at-least-32-bytes';
 		process.env.BETTER_AUTH_URL = appOrigin;
 		process.env.PASSWORD_AUTH_ENABLED = 'true';
-		process.env.OIDC_ISSUER_URL = provider.issuerUrl;
+		process.env.OIDC_ISSUER_URL = `${provider.issuerUrl}/`;
 		process.env.OIDC_CLIENT_ID = 'schtart-test-client';
 		process.env.OIDC_CLIENT_SECRET = 'local-test-client-secret';
 		delete process.env.REGISTRATION_EMAIL_ALLOWLIST;
@@ -120,6 +120,7 @@ describe('OIDC configured issuer identity', () => {
 
 	beforeEach(async () => {
 		delete process.env.REGISTRATION_EMAIL_ALLOWLIST;
+		provider.setUserInfoOverrides();
 		await resetIntegrationDatabase();
 	});
 
@@ -133,11 +134,12 @@ describe('OIDC configured issuer identity', () => {
 		}
 	});
 
-	it('rejects a different discovery issuer before creating an identity or linking an account', async () => {
+	it('rejects a UserInfo issuer spoofing a trailing-slash-configured issuer after token verification', async () => {
+		provider.setUserInfoOverrides({ iss: `${provider.issuerUrl}/` });
 		const identity = {
-			sub: 'mismatched-issuer-subject',
-			email: 'mismatched-issuer@example.test',
-			name: 'Mismatched Issuer',
+			sub: 'trailing-slash-issuer-subject',
+			email: 'trailing-slash-issuer@example.test',
+			name: 'Trailing Slash Issuer',
 			emailVerified: true
 		};
 		const signIn = await oauthRequest('sign-in/social', identity);

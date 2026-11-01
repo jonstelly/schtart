@@ -3,6 +3,7 @@ import { APIError, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { username } from 'better-auth/plugins';
+import { decodeJwt } from 'jose';
 import { db } from './db';
 import * as schema from './schema';
 import { assignInitialAdministrator } from './registration';
@@ -37,21 +38,22 @@ const plugins = [
 							scopes: ['openid', 'email', 'profile'],
 							requireIdTokenVerification: true,
 							accountSubject: ({ tokens, profile }) => {
-								// genericOAuth falls back to UserInfo when no ID token is returned.
-								// Gate identity resolution after Better Auth's built-in ID-token verification.
-								if (!tokens.idToken) {
+								// Better Auth verifies this token before calling accountSubject. Decode only
+								// its claims here; never trust the potentially UserInfo-derived profile issuer.
+								if (typeof tokens.idToken !== 'string' || !tokens.idToken) {
 									throw new Error('OIDC provider did not return a required ID token.');
 								}
-								if (profile.iss !== oidcConfiguration.issuerUrl) {
+								const claims = decodeJwt(tokens.idToken);
+								if (claims.iss !== oidcConfiguration.issuerUrl) {
 									throw new Error('OIDC provider issuer does not match OIDC_ISSUER_URL.');
 								}
-								if (
-									typeof profile.sub !== 'string' &&
-									typeof profile.sub !== 'number'
-								) {
+								if (typeof claims.sub !== 'string' || !claims.sub) {
 									throw new Error('OIDC provider did not return a stable subject.');
 								}
-								return profile.sub;
+								if (profile.sub !== claims.sub) {
+									throw new Error('OIDC provider subject does not match the verified ID token.');
+								}
+								return claims.sub;
 							}
 						}
 					]

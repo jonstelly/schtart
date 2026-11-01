@@ -55,7 +55,9 @@ export class LocalOidcProvider {
 		emailVerified: true
 	};
 	private omitIdToken = false;
+	private omitIdTokenEmail = false;
 	private discoveryIssuer?: string;
+	private userInfoOverrides: Record<string, unknown> = {};
 	private server?: Server;
 	issuerUrl = '';
 
@@ -86,8 +88,16 @@ export class LocalOidcProvider {
 		this.omitIdToken = omit;
 	}
 
+	setOmitIdTokenEmail(omit: boolean) {
+		this.omitIdTokenEmail = omit;
+	}
+
 	setDiscoveryIssuer(issuer?: string) {
 		this.discoveryIssuer = issuer;
+	}
+
+	setUserInfoOverrides(overrides: Record<string, unknown> = {}) {
+		this.userInfoOverrides = overrides;
 	}
 
 	private async handle(request: IncomingMessage, response: ServerResponse) {
@@ -165,7 +175,7 @@ export class LocalOidcProvider {
 						exp: now + 300,
 						iat: now,
 						nonce: pending.nonce,
-						email: pending.identity.email,
+						...(this.omitIdTokenEmail ? {} : { email: pending.identity.email }),
 						email_verified: pending.identity.emailVerified,
 						name: pending.identity.name
 					})
@@ -189,7 +199,8 @@ export class LocalOidcProvider {
 					sub: identity.sub,
 					email: identity.email,
 					email_verified: identity.emailVerified,
-					name: identity.name
+					name: identity.name,
+					...this.userInfoOverrides
 				});
 			}
 			return json(response, 404, { error: 'not_found' });

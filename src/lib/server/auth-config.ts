@@ -21,10 +21,13 @@ export function validateAuthConfiguration(
 	}
 	const passwordEnabled = passwordMode !== 'false';
 
-	const issuerSetting = environment.OIDC_ISSUER_URL?.trim() ?? '';
+	const issuerSetting = environment.OIDC_ISSUER_URL ?? '';
 	const clientId = environment.OIDC_CLIENT_ID?.trim() ?? '';
 	const clientSecret = environment.OIDC_CLIENT_SECRET?.trim() ?? '';
-	const configuredOidcFields = [issuerSetting, clientId, clientSecret].filter(Boolean).length;
+	if (issuerSetting !== issuerSetting.trim()) {
+		throw new Error('OIDC_ISSUER_URL must not contain surrounding whitespace.');
+	}
+	const configuredOidcFields = [issuerSetting.trim(), clientId, clientSecret].filter(Boolean).length;
 	if (configuredOidcFields > 0 && configuredOidcFields < 3) {
 		throw new Error(
 			'OIDC configuration is incomplete. Set OIDC_ISSUER_URL, OIDC_CLIENT_ID, and OIDC_CLIENT_SECRET together.'
@@ -50,10 +53,12 @@ export function validateAuthConfiguration(
 				'OIDC_ISSUER_URL must be a valid absolute HTTP(S) URL without credentials, query, or fragment.'
 			);
 		}
-		const issuerUrl = issuer.toString().replace(/\/$/, '');
+		const issuerUrl = issuerSetting;
+		const discoveryIssuer = new URL(issuerUrl);
+		discoveryIssuer.pathname = `${discoveryIssuer.pathname.replace(/\/$/, '')}/.well-known/openid-configuration`;
 		oidc = {
 			issuerUrl,
-			discoveryUrl: `${issuerUrl}/.well-known/openid-configuration`,
+			discoveryUrl: discoveryIssuer.toString(),
 			clientId,
 			clientSecret
 		};

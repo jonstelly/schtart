@@ -119,7 +119,9 @@ describe('OIDC authentication and account linking', () => {
 	beforeEach(async () => {
 		delete process.env.REGISTRATION_EMAIL_ALLOWLIST;
 		provider.setOmitIdToken(false);
+		provider.setOmitIdTokenEmail(false);
 		provider.setDiscoveryIssuer();
+		provider.setUserInfoOverrides();
 		await resetIntegrationDatabase();
 	});
 
@@ -131,6 +133,77 @@ describe('OIDC authentication and account linking', () => {
 			if (value === undefined) delete process.env[key];
 			else process.env[key] = value;
 		}
+	});
+
+	it('binds OIDC account identity to the verified ID token subject, not UserInfo', async () => {
+		provider.setOmitIdTokenEmail(true);
+		const existingIdentity = {
+			sub: 'bound-oidc-subject',
+			email: 'bound@example.test',
+			name: 'Bound Identity'
+		};
+		const registration = await oauthRequest('sign-in/social', existingIdentity);
+
+		expect(registration.callback?.status).toBe(302);
+		expect(sessionCookie(registration.callback!)).toBeDefined();
+		const initialAccounts = await db
+			.select({ userId: account.userId, accountId: account.accountId })
+			.from(account)
+			.where(eq(account.providerId, 'oidc'));
+		expect(initialAccounts).toHaveLength(1);
+		const sessionsBeforeSignIn = await db.select({ id: session.id }).from(session);
+
+		provider.setUserInfoOverrides({ iss: provider.issuerUrl, sub: existingIdentity.sub });
+		const mismatchedSignIn = await oauthRequest('sign-in/social', {
+			sub: 'different-signed-subject',
+			email: existingIdentity.email,
+			name: 'Mismatched Sign-In'
+		});
+
+		expect(mismatchedSignIn.start.status).toBe(200);
+		expect(sessionCookie(mismatchedSignIn.callback!)).toBeUndefined();
+		expect(await db.select({ id: user.id }).from(user)).toHaveLength(1);
+		expect(await db.select({ id: session.id }).from(session)).toHaveLength(sessionsBeforeSignIn.length);
+		expect(
+			await db
+				.select({ userId: account.userId, accountId: account.accountId })
+				.from(account)
+				.where(eq(account.providerId, 'oidc'))
+		).toEqual(initialAccounts);
+
+		const passwordRegistration = await postAuth({
+			request: request('sign-up/email', 'POST', {
+				name: 'Link Target',
+				username: 'linktarget',
+				email: 'link-target@example.test',
+				password: 'correct horse battery staple'
+			})
+		});
+		expect(passwordRegistration.status, await passwordRegistration.clone().text()).toBe(200);
+		const passwordSession = sessionCookie(passwordRegistration);
+		expect(passwordSession).toBeDefined();
+		const sessionsBeforeLink = await db.select({ id: session.id }).from(session);
+
+		const mismatchedLink = await oauthRequest(
+			'link-social',
+			{
+				sub: 'different-signed-link-subject',
+				email: 'link-target@example.test',
+				name: 'Mismatched Link'
+			},
+			passwordSession
+		);
+
+		expect(mismatchedLink.start.status).toBe(200);
+		expect(sessionCookie(mismatchedLink.callback!)).toBeUndefined();
+		expect(await db.select({ id: user.id }).from(user)).toHaveLength(2);
+		expect(await db.select({ id: session.id }).from(session)).toHaveLength(sessionsBeforeLink.length);
+		expect(
+			await db
+				.select({ userId: account.userId, accountId: account.accountId })
+				.from(account)
+				.where(eq(account.providerId, 'oidc'))
+		).toEqual(initialAccounts);
 	});
 
 	it('registers the first OIDC user as administrator and does not revoke their sign-in when policy changes', async () => {
