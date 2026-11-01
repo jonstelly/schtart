@@ -143,7 +143,14 @@
 						<span class="sm:hidden">Layout</span>
 					</Button>
 					<ThemeToggle />
-					<Button variant="ghost" size="sm" onclick={signOut} disabled={signingOut} class="gap-2 px-2 sm:px-2.5">
+					<Button
+						variant="ghost"
+						size="sm"
+						aria-label={signingOut ? 'Signing out' : 'Sign out'}
+						onclick={signOut}
+						disabled={signingOut}
+						class="gap-2 px-2 sm:px-2.5"
+					>
 						<LogOut aria-hidden="true" size={15} />
 						<span class="hidden sm:inline">{signingOut ? 'Signing out…' : 'Sign out'}</span>
 					</Button>

@@ -48,3 +48,10 @@ describe('authenticated start page theme continuity', () => {
 		expect(applyStoredTheme(null).has('dark')).toBe(true);
 	});
 });
+
+describe('responsive dashboard controls', () => {
+	it('keeps the sign-out control named when its visual label is hidden on mobile', () => {
+		expect(page).toContain("aria-label={signingOut ? 'Signing out' : 'Sign out'}");
+		expect(page).toContain('<span class="hidden sm:inline">{signingOut ?');
+	});
+});

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 const stylesheet = readFileSync(new URL('./layout.css', import.meta.url), 'utf8');
 const buttonStyles = readFileSync(new URL('../lib/components/ui/button/button.svelte', import.meta.url), 'utf8');
 const inputStyles = readFileSync(new URL('../lib/components/ui/input/input.svelte', import.meta.url), 'utf8');
+const dashboardEditor = readFileSync(new URL('../lib/components/DashboardConfigurationEditor.svelte', import.meta.url), 'utf8');
 
 type Oklch = { lightness: number; chroma: number; hue: number };
 
@@ -161,5 +162,19 @@ describe('centralized auth theme contrast', () => {
 		expect(inputStyles).toContain('focus-visible:ring-ring');
 		expect(buttonStyles).not.toContain('focus-visible:ring-ring/50');
 		expect(inputStyles).not.toContain('focus-visible:ring-ring/50');
+	});
+});
+
+describe('CodeMirror theme tokens', () => {
+	it('defines semantic caret and selection colors for both dashboard themes', () => {
+		for (const theme of [':root', '.dark'] as const) {
+			const block = stylesheet.match(new RegExp(`${theme.replace('.', '\\.')}\\s*\\{([^}]+)\\}`))?.[1];
+			expect(block).toContain('--editor-caret: var(--auth-focus)');
+			expect(block).toContain('--editor-selection: color-mix(in oklch, var(--auth-focus) 24%, var(--auth-control))');
+		}
+
+		expect(dashboardEditor).toContain("caretColor: 'var(--editor-caret)'");
+		expect(dashboardEditor).toContain("borderLeftColor: 'var(--editor-caret)'");
+		expect(dashboardEditor).toContain("backgroundColor: 'var(--editor-selection)'");
 	});
 });

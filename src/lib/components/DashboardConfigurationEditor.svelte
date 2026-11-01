@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { defaultKeymap, indentWithTab } from '@codemirror/commands';
+	import { defaultKeymap } from '@codemirror/commands';
 	import { HighlightStyle, foldGutter, indentOnInput, syntaxHighlighting } from '@codemirror/language';
-	import { EditorState } from '@codemirror/state';
+	import { Compartment, EditorState } from '@codemirror/state';
 	import { EditorView, drawSelection, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
 	import { yaml } from '@codemirror/lang-yaml';
 	import { tags } from '@lezer/highlight';
@@ -39,6 +39,8 @@
 	onMount(() => {
 		dialogElement.showModal();
 		draft = initialYaml;
+		const themeCompartment = new Compartment();
+		const initialDarkMode = document.documentElement.classList.contains('dark');
 		editorView = new EditorView({
 			state: EditorState.create({
 				doc: initialYaml,
@@ -50,7 +52,8 @@
 					indentOnInput(),
 					yaml(),
 					syntaxHighlighting(yamlHighlightStyle),
-					keymap.of([...defaultKeymap, indentWithTab]),
+					keymap.of(defaultKeymap),
+					themeCompartment.of(EditorView.darkTheme.of(initialDarkMode)),
 					EditorView.lineWrapping,
 					EditorView.contentAttributes.of({
 						'aria-labelledby': 'dashboard-yaml-label',
@@ -66,7 +69,9 @@
 							fontSize: '0.82rem',
 							minHeight: '22rem'
 						},
-						'.cm-content': { minHeight: '22rem', padding: '1rem 0' },
+						'.cm-content': { minHeight: '22rem', padding: '1rem 0', caretColor: 'var(--editor-caret)' },
+						'.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--editor-caret)' },
+						'.cm-selectionBackground': { backgroundColor: 'var(--editor-selection)' },
 						'.cm-gutters': {
 							backgroundColor: 'var(--muted)',
 							color: 'var(--muted-foreground)',
@@ -79,9 +84,19 @@
 			}),
 			parent: editorHost
 		});
+		const themeObserver = new MutationObserver(() => {
+			const isDark = document.documentElement.classList.contains('dark');
+			if (editorView.state.facet(EditorView.darkTheme) !== isDark) {
+				editorView.dispatch({ effects: themeCompartment.reconfigure(EditorView.darkTheme.of(isDark)) });
+			}
+		});
+		themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 		editorView.focus();
 
-		return () => editorView.destroy();
+		return () => {
+			themeObserver.disconnect();
+			editorView.destroy();
+		};
 	});
 
 	async function saveConfiguration() {
@@ -157,6 +172,7 @@
 			</div>
 			<p id="dashboard-yaml-help" class="mb-3 text-xs leading-5 text-muted-foreground">
 				Use registered widgets only. Each page has one to three columns; column order and widget order are preserved.
+				Ctrl+[ / Ctrl+] outdent or indent (Command+[ / Command+] on macOS). Tab moves focus through the controls.
 			</p>
 			<div
 				id="dashboard-yaml-editor"
