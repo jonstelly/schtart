@@ -9,7 +9,7 @@ An unclaimed instance must let its first successful account registration become 
 
 ## Decision
 
-After Better Auth persists a new user, its supported user-create database hook calls the registration service. The service opens a PostgreSQL transaction, acquires advisory lock `(0x53434854, 1)` in the `SCHT` application namespace, checks for an existing administrator, and promotes the current user only when none exists. The role is stored on the user record and is not client-writable. The transaction commits before the registration hook completes.
+Better Auth's Drizzle adapter transactions are enabled so signup persists the user, credential, and initial session atomically. After that transaction commits, Better Auth's supported user-create database hook calls the registration service. The service opens a PostgreSQL transaction, acquires advisory lock `(0x53434854, 1)` in the `SCHT` application namespace, checks for an existing administrator, and promotes the current user only when none exists. The role is stored on the user record and is not client-writable. The transaction commits before the registration hook completes. If credential or session persistence fails, the signup transaction rolls back and the hook cannot promote a partial account.
 
 The registration email allowlist, when set, is an exact comma-separated list of email addresses. App code trims and lowercases addresses for matching; the setting governs account creation only, not authentication.
 

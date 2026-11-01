@@ -30,7 +30,9 @@ export const auth = betterAuth({
 	baseURL,
 	basePath: '/api/auth',
 	secret: secret ?? 'build-only-secret-not-used-at-runtime-0123456789',
-	database: drizzleAdapter(db, { provider: 'pg', schema }),
+	// Keep Better Auth's user, credential, and initial session writes atomic. Its
+	// supported create.after hook then runs only after those writes commit.
+	database: drizzleAdapter(db, { provider: 'pg', schema, transaction: true }),
 	trustedOrigins: [baseURL],
 	emailAndPassword: {
 		enabled: true,

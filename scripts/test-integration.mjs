@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 
 const value = process.env.TEST_DATABASE_URL;
+const databaseOverrideParameters = new Set(['db', 'database', 'dbname']);
 
 if (!value) {
 	console.error('TEST_DATABASE_URL must point to a dedicated disposable PostgreSQL test database.');
@@ -12,6 +13,10 @@ let databaseName;
 try {
 	const url = new URL(value);
 	if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') throw new Error();
+	if ([...url.searchParams.keys()].some((key) => databaseOverrideParameters.has(key.toLowerCase()))) {
+		console.error('TEST_DATABASE_URL must not include a database override query parameter.');
+		process.exit(1);
+	}
 	databaseName = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
 } catch {
 	console.error('TEST_DATABASE_URL must be a valid PostgreSQL URL.');

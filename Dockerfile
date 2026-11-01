@@ -5,7 +5,7 @@ RUN npm install -g pnpm@12.16.1
 WORKDIR /app
 
 FROM base AS build
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
 RUN pnpm build && pnpm prune --prod

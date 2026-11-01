@@ -8,6 +8,10 @@ import { GET as getAuth, POST as postAuth } from './+server';
 import { GET as getSetupStatus } from '../../setup/status/+server';
 import { GET as getAccount } from '../../account/+server';
 import { GET as getAdminStatus } from '../../admin/status/+server';
+import { db } from '../../../../lib/server/db';
+import { hasAdministrator } from '../../../../lib/server/registration';
+import { sql } from 'drizzle-orm';
+import { user } from '../../../../lib/server/schema';
 
 const requestEvent = (request: Request) => ({ request }) as Parameters<typeof postAuth>[0];
 const origin = 'http://localhost:3000';
@@ -45,6 +49,32 @@ function sessionCookie(response: Response) {
 		?.split(';', 1)[0];
 }
 
+async function failAuthPersistenceOnInsert(table: 'account' | 'session') {
+	const functionName = `reject_${table}_insert`;
+	const triggerName = `reject_${table}_insert`;
+	await db.execute(
+			sql.raw(
+				`CREATE OR REPLACE FUNCTION ${functionName}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated ${table} persistence failure'; RETURN NEW; END; $$`
+			)
+	);
+	await db.execute(
+		sql.raw(
+			`CREATE TRIGGER ${triggerName} BEFORE INSERT ON "${table}" FOR EACH ROW EXECUTE FUNCTION ${functionName}()`
+		)
+	);
+	return async () => {
+		await db.execute(sql.raw(`DROP TRIGGER ${triggerName} ON "${table}"`));
+		await db.execute(sql.raw(`DROP FUNCTION ${functionName}()`));
+	};
+}
+
+async function expectFailedSignupLeavesInstanceUnclaimed() {
+	const response = await signUp('ada', 'ada@example.test');
+	expect(response.status).not.toBe(200);
+	expect(await db.select({ id: user.id }).from(user)).toEqual([]);
+	expect(await hasAdministrator()).toBe(false);
+}
+
 describe('password registration', () => {
 	beforeAll(prepareIntegrationDatabase);
 	beforeEach(async () => {
@@ -64,6 +94,24 @@ describe('password registration', () => {
 
 		const status = await getSetupStatus();
 		expect(await status.json()).toEqual({ configured: true });
+	});
+
+	it('does not promote a user when credential persistence fails', async () => {
+		const removeFailure = await failAuthPersistenceOnInsert('account');
+		try {
+			await expectFailedSignupLeavesInstanceUnclaimed();
+		} finally {
+			await removeFailure();
+		}
+	});
+
+	it('does not promote a user when session persistence fails', async () => {
+		const removeFailure = await failAuthPersistenceOnInsert('session');
+		try {
+			await expectFailedSignupLeavesInstanceUnclaimed();
+		} finally {
+			await removeFailure();
+		}
 	});
 
 	it('requires a username for password registration', async () => {
