@@ -11,12 +11,17 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:unit": "vitest",
-		"test": "vitest run"
+		"test": "vitest run",
+		"test:integration": "node scripts/test-integration.mjs",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "node scripts/db-migrate.mjs"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-node": "^6.0.1",
 		"@sveltejs/kit": "^3.0.0",
 		"@sveltejs/vite-plugin-svelte": "^7.2.0",
+		"@types/node": "^26.6.6",
+		"drizzle-kit": "^0.31.11",
 		"svelte": "^5.57.2",
 		"svelte-check": "^4.6.0",
 		"typescript": "^6.0.3",
@@ -30,5 +35,10 @@
 	"packageManager": "pnpm@12.16.1",
 	"engines": {
 		"node": ">=26"
+	},
+	"dependencies": {
+		"better-auth": "^1.7.14",
+		"drizzle-orm": "^0.45.4",
+		"postgres": "^4.0.0"
 	}
 }

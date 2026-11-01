@@ -6,7 +6,7 @@ WORKDIR /app
 
 FROM base AS build
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
 RUN pnpm build && pnpm prune --prod
 
@@ -15,6 +15,8 @@ WORKDIR /app
 ENV NODE_ENV=production PORT=3000
 COPY --from=build /app/build ./build
 COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/drizzle ./drizzle
+COPY --from=build /app/scripts/db-migrate.mjs ./scripts/db-migrate.mjs
 COPY package.json .
 USER node
 EXPOSE 3000

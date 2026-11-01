@@ -32,6 +32,10 @@ Run from the repo root.
 - Config lives in `vite.config.ts`; SvelteKit 3 has no `svelte.config.js`.
 - Add dependencies only when the task needs them.
 
+## Agent implementation guidance
+
+- Prefer maintained packages to minimize app-owned code. Keep app code focused on domain behavior and thin integration glue; avoid redundant wrappers, speculative abstractions, and recreating package capabilities. Add dependencies when they meaningfully reduce implementation and maintenance burden.
+
 ## Delivery
 
 - Mainline flow. `main` is protected; never commit or push to it.
