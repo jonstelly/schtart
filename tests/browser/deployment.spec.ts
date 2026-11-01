@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const customConfiguration = `version: 1
 pages:
@@ -17,6 +17,71 @@ pages:
     columns:
       - - widget: welcome
 `;
+
+test.describe('password-only authentication', () => {
+	test.use({ authMode: 'password-only' });
+
+	test('setup and login do not offer OIDC', async ({ page }) => {
+		await page.goto('/');
+		await expect(page).toHaveURL(/\/setup$/);
+		await expect(page.getByLabel('Username')).toBeVisible();
+		await expect(page.getByLabel('Email address')).toBeVisible();
+		await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Continue with OIDC' })).toHaveCount(0);
+
+		await page.getByLabel('Username').fill('passwordonly');
+		await page.getByLabel('Email address').fill('password-only@example.test');
+		await page.getByLabel('Password', { exact: true }).fill('test-password-1234');
+		await page.getByRole('button', { name: 'Create account', exact: true }).click();
+		await expect(page).toHaveURL('/');
+
+		await page.getByRole('button', { name: 'Sign out' }).click();
+		await expect(page).toHaveURL(/\/login$/);
+		await expect(page.getByLabel('Username')).toBeVisible();
+		await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Continue with OIDC' })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Create an account' })).toBeVisible();
+		await page.getByLabel('Username').fill('passwordonly');
+		await page.getByLabel('Password', { exact: true }).fill('test-password-1234');
+		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+		await expect(page).toHaveURL('/');
+	});
+});
+
+test.describe('OIDC-only authentication', () => {
+	test.use({ authMode: 'oidc-only' });
+
+	test('setup and login use the local identity provider without password registration', async ({ page }) => {
+		await page.goto('/');
+		await expect(page).toHaveURL(/\/setup$/);
+		await expect(page.getByLabel('Username')).toHaveCount(0);
+		await expect(page.getByLabel('Email address')).toHaveCount(0);
+		await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Continue with OIDC' })).toBeVisible();
+
+		await page.goto('/register');
+		await expect(page.getByLabel('Username')).toHaveCount(0);
+		await expect(page.getByLabel('Email address')).toHaveCount(0);
+		await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Create account with OIDC' })).toBeVisible();
+
+		await page.goto('/setup');
+		await page.getByRole('button', { name: 'Continue with OIDC' }).click();
+		await expect(page).toHaveURL('/');
+		await expect(page.getByRole('button', { name: 'Admin' })).toBeVisible();
+
+		await page.getByRole('button', { name: 'Sign out' }).click();
+		await expect(page).toHaveURL(/\/login$/);
+		await expect(page.getByLabel('Username')).toHaveCount(0);
+		await expect(page.getByLabel('Email address')).toHaveCount(0);
+		await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Create an account' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Continue with OIDC' })).toBeVisible();
+		await page.getByRole('button', { name: 'Continue with OIDC' }).click();
+		await expect(page).toHaveURL('/');
+		await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+	});
+});
 
 async function replaceEditorText(page: import('@playwright/test').Page, text: string) {
 	const editor = page.locator('.cm-content[contenteditable="true"]');

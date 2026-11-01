@@ -1,8 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
+import { prepareTestDatabase } from '../../scripts/prepare-test-database.mjs';
 import { LocalOidcProvider } from '../integration/local-oidc-provider';
 
 const appOrigin = 'http://127.0.0.1:4173';
+
+export type BrowserAuthMode = 'dual' | 'password-only' | 'oidc-only';
 
 async function stopApp(app: ChildProcess) {
 	if (app.exitCode !== null || app.signalCode !== null) return;
@@ -14,14 +17,17 @@ async function stopApp(app: ChildProcess) {
 	clearTimeout(forcedStop);
 }
 
-export default async function globalSetup() {
-	const provider = new LocalOidcProvider();
-	await provider.start();
-	provider.useIdentity({
-		sub: 'browser-user',
-		email: 'browser-user@example.test',
-		name: 'Browser User'
-	});
+export async function startBrowserApp(mode: BrowserAuthMode) {
+	const databaseUrl = await prepareTestDatabase(process.env.TEST_DATABASE_URL);
+	const provider = mode === 'password-only' ? undefined : new LocalOidcProvider();
+	if (provider) {
+		await provider.start();
+		provider.useIdentity({
+			sub: mode === 'dual' ? 'browser-user' : 'oidc-only-user',
+			email: mode === 'dual' ? 'browser-user@example.test' : 'oidc-only-user@example.test',
+			name: mode === 'dual' ? 'Browser User' : 'OIDC Only User'
+		});
+	}
 
 	const app = spawn(process.execPath, ['build'], {
 		stdio: 'inherit',
@@ -30,13 +36,14 @@ export default async function globalSetup() {
 			NODE_ENV: 'production',
 			HOST: '127.0.0.1',
 			PORT: '4173',
+			DATABASE_URL: databaseUrl,
 			BETTER_AUTH_URL: appOrigin,
 			BETTER_AUTH_SECRET: 'playwright-only-not-a-deployment-secret-0123456789',
-			PASSWORD_AUTH_ENABLED: 'true',
+			PASSWORD_AUTH_ENABLED: mode === 'oidc-only' ? 'false' : 'true',
 			REGISTRATION_EMAIL_ALLOWLIST: '',
-			OIDC_ISSUER_URL: provider.issuerUrl,
-			OIDC_CLIENT_ID: 'schtart-test-client',
-			OIDC_CLIENT_SECRET: 'local-test-client-secret'
+			OIDC_ISSUER_URL: provider?.issuerUrl ?? '',
+			OIDC_CLIENT_ID: provider ? 'schtart-test-client' : '',
+			OIDC_CLIENT_SECRET: provider ? 'local-test-client-secret' : ''
 		}
 	});
 
@@ -60,12 +67,14 @@ export default async function globalSetup() {
 		if (!ready) throw new Error('Built Schtart server did not become ready at /api/health.');
 	} catch (error) {
 		await stopApp(app);
-		await provider.stop();
+		await provider?.stop();
 		throw error;
 	}
 
-	return async () => {
-		await stopApp(app);
-		await provider.stop();
+	return {
+		stop: async () => {
+			await stopApp(app);
+			await provider?.stop();
+		}
 	};
 }
