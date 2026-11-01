@@ -84,6 +84,35 @@ export class LocalOidcProvider {
 		this.nextIdentity = { emailVerified: true, ...identity };
 	}
 
+	issueIdToken(identity: OidcIdentity) {
+		const nonce = randomBytes(24).toString('base64url');
+		const accessToken = randomBytes(24).toString('base64url');
+		const verifiedIdentity = { emailVerified: true, ...identity };
+		this.accessTokens.set(accessToken, verifiedIdentity);
+		const now = Math.floor(Date.now() / 1000);
+		const header = Buffer.from(JSON.stringify({ alg: 'RS256', kid: this.kid, typ: 'JWT' })).toString(
+			'base64url'
+		);
+		const payload = Buffer.from(
+			JSON.stringify({
+				iss: this.issuerUrl,
+				sub: verifiedIdentity.sub,
+				aud: 'schtart-test-client',
+				exp: now + 300,
+				iat: now,
+				nonce,
+				email: verifiedIdentity.email,
+				email_verified: verifiedIdentity.emailVerified,
+				name: verifiedIdentity.name
+			})
+		).toString('base64url');
+		const input = `${header}.${payload}`;
+		const signature = sign('RSA-SHA256', Buffer.from(input), this.keyPair.privateKey).toString(
+			'base64url'
+		);
+		return { token: `${input}.${signature}`, nonce, accessToken };
+	}
+
 	setOmitIdToken(omit: boolean) {
 		this.omitIdToken = omit;
 	}

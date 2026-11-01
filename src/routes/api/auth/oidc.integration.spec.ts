@@ -99,6 +99,21 @@ async function oauthRequest(
 	return { start, callback, cookie: updateCookies(cookie, callback) };
 }
 
+async function directOidcRequest(identity: OidcIdentity) {
+	const idToken = provider.issueIdToken(identity);
+	return postAuth({
+		request: request('sign-in/social', 'POST', {
+			provider: 'oidc',
+			callbackURL: '/',
+			idToken: {
+				token: idToken.token,
+				nonce: idToken.nonce,
+				accessToken: idToken.accessToken
+			}
+		})
+	});
+}
+
 async function prepareOidcRegistrationCallback(identity: OidcIdentity) {
 	provider.useIdentity(identity);
 	const start = await postAuth({
@@ -253,7 +268,7 @@ describe('OIDC authentication and account linking', () => {
 		expect(await db.select({ role: user.role }).from(user)).toEqual([{ role: 'admin' }]);
 	});
 
-	it('does not claim the first administrator until an OIDC session is persisted', async () => {
+	it('does not claim the first administrator until callback and direct OIDC sessions are persisted', async () => {
 		await db.execute(
 			sql`ALTER TABLE "session" DROP CONSTRAINT IF EXISTS "oidc_session_persistence_failure"`
 		);
@@ -272,6 +287,24 @@ describe('OIDC authentication and account linking', () => {
 			expect(await db.select({ id: session.id }).from(session)).toHaveLength(0);
 			expect(await db.select({ id: account.id }).from(account)).toHaveLength(1);
 			expect(await db.select({ role: user.role }).from(user)).toEqual([{ role: 'user' }]);
+			expect(await hasAdministrator()).toBe(false);
+
+			const failedDirectRegistration = await directOidcRequest({
+				sub: 'oidc-direct-session-failure',
+				email: 'oidc-direct-session-failure@example.test',
+				name: 'Failed Direct Session Registration'
+			});
+
+			expect(failedDirectRegistration.status).not.toBe(200);
+			expect(failedDirectRegistration.headers.get('set-cookie')).toBeNull();
+			expect(await db.select({ id: session.id }).from(session)).toHaveLength(0);
+			expect(await db.select({ id: account.id }).from(account)).toHaveLength(2);
+			expect(
+				await db
+					.select({ role: user.role })
+					.from(user)
+					.where(eq(user.email, 'oidc-direct-session-failure@example.test'))
+			).toEqual([{ role: 'user' }]);
 			expect(await hasAdministrator()).toBe(false);
 		} finally {
 			await db.execute(
@@ -292,8 +325,8 @@ describe('OIDC authentication and account linking', () => {
 			await db
 				.select({ role: user.role })
 				.from(user)
-				.where(eq(user.email, 'oidc-session-failure@example.test'))
-		).toEqual([{ role: 'user' }]);
+				.where(eq(user.role, 'user'))
+		).toHaveLength(2);
 		expect(
 			await db
 				.select({ role: user.role })
@@ -311,9 +344,32 @@ describe('OIDC authentication and account linking', () => {
 		});
 	});
 
-	it('promotes exactly one first administrator for concurrent OIDC registrations', async () => {
+	it('returns the promoted role for a direct OIDC sign-in and its new session', async () => {
+		const response = await directOidcRequest({
+			sub: 'direct-oidc-admin',
+			email: 'direct-oidc-admin@example.test',
+			name: 'Direct OIDC Admin'
+		});
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			redirect: false,
+			user: { email: 'direct-oidc-admin@example.test', role: 'admin' }
+		});
+		const cookie = sessionCookie(response);
+		expect(cookie).toBeDefined();
+
+		const sessionResponse = await getAuth({
+			request: request('get-session', 'GET', undefined, cookie)
+		});
+		expect(await sessionResponse.json()).toMatchObject({
+			user: { email: 'direct-oidc-admin@example.test', role: 'admin' }
+		});
+	});
+
+	it('promotes exactly one administrator for concurrent callback, direct OIDC, and password registrations', async () => {
 		const callbackRequests: Request[] = [];
-		for (let index = 0; index < 6; index++) {
+		for (let index = 0; index < 2; index++) {
 			callbackRequests.push(
 				await prepareOidcRegistrationCallback({
 					sub: `oidc-racer-${index}`,
@@ -323,13 +379,45 @@ describe('OIDC authentication and account linking', () => {
 			);
 		}
 
-		const responses = await Promise.all(
-			callbackRequests.map((callbackRequest) => getAuth({ request: callbackRequest }))
-		);
-		expect(responses.every((response) => response.status === 302)).toBe(true);
-		expect(responses.every((response) => Boolean(sessionCookie(response)))).toBe(true);
+		const registrations = [
+			...callbackRequests.map((callbackRequest) => getAuth({ request: callbackRequest })),
+			...Array.from({ length: 2 }, (_, index) =>
+				directOidcRequest({
+					sub: `direct-racer-${index}`,
+					email: `direct-racer-${index}@example.test`,
+					name: `Direct Racer ${index}`
+				})
+			),
+			...Array.from({ length: 2 }, (_, index) =>
+				postAuth({
+					request: request('sign-up/email', 'POST', {
+						name: `Password Racer ${index}`,
+						username: `passwordracer${index}`,
+						email: `password-racer-${index}@example.test`,
+						password: 'correct horse battery staple'
+					})
+				})
+			)
+		];
+		const responses = await Promise.all(registrations);
+		expect(responses.map((response) => response.status).sort()).toEqual([
+			200, 200, 200, 200, 302, 302
+		]);
+		const cookies = responses.map((response) => sessionCookie(response));
+		expect(cookies.every(Boolean)).toBe(true);
+		for (const cookie of cookies) {
+			const sessionResponse = await getAuth({
+				request: request('get-session', 'GET', undefined, cookie)
+			});
+			const sessionPayload = await sessionResponse.json();
+			const persistedUser = await db
+				.select({ role: user.role })
+				.from(user)
+				.where(eq(user.email, sessionPayload.user.email));
+			expect(sessionPayload.user.role).toBe(persistedUser[0].role);
+		}
 		expect(await db.select({ id: user.id }).from(user).where(eq(user.role, 'admin'))).toHaveLength(1);
-		expect(await db.select({ id: session.id }).from(session)).toHaveLength(callbackRequests.length);
+		expect(await db.select({ id: session.id }).from(session)).toHaveLength(responses.length);
 	});
 
 	it('enforces the OIDC registration allowlist without claiming an unclaimed instance', async () => {
@@ -395,6 +483,8 @@ describe('OIDC authentication and account linking', () => {
 			)
 		});
 		expect(unauthenticatedLink.status).toBe(401);
+		await db.update(user).set({ role: 'user' }).where(eq(user.id, adaId));
+		expect(await hasAdministrator()).toBe(false);
 
 		const explicitLink = await oauthRequest(
 			'link-social',
@@ -409,5 +499,17 @@ describe('OIDC authentication and account linking', () => {
 				.from(account)
 				.where(eq(account.providerId, 'oidc'))
 		).toEqual([{ userId: adaId, accountId: 'ada-oidc-account' }]);
+		expect(await hasAdministrator()).toBe(false);
+		expect(await db.select({ role: user.role }).from(user)).toEqual([{ role: 'user' }]);
+
+		const returningSignIn = await oauthRequest('sign-in/social', {
+			sub: 'ada-oidc-account',
+			email: 'ada@example.test',
+			name: 'Ada at IdP'
+		});
+		expect(returningSignIn.callback?.status).toBe(302);
+		expect(sessionCookie(returningSignIn.callback!)).toBeDefined();
+		expect(await hasAdministrator()).toBe(false);
+		expect(await db.select({ role: user.role }).from(user)).toEqual([{ role: 'user' }]);
 	});
 });

@@ -1,5 +1,6 @@
 import { building } from '$app/env';
 import { APIError, betterAuth } from 'better-auth';
+import { createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { username } from 'better-auth/plugins';
@@ -8,6 +9,15 @@ import { db } from './db';
 import * as schema from './schema';
 import { assignInitialAdministrator } from './registration';
 import { isRegistrationEmailAllowed, validateAuthConfiguration } from './auth-config';
+
+type PendingOidcRegistration = { userId?: string };
+
+// Keep the OIDC registration lifecycle isolated to one Better Auth request.
+const pendingOidcRegistrations = new WeakMap<object, PendingOidcRegistration>();
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
 
 const secret = process.env.BETTER_AUTH_SECRET;
 
@@ -83,6 +93,15 @@ export const auth = betterAuth({
 		minPasswordLength: 12
 	},
 	user: {
+		validateUserInfo: ({ source }, context) => {
+			if (
+				source.action === 'create-user' &&
+				source.method === 'oauth' &&
+				source.oauth?.providerId === 'oidc'
+			) {
+				pendingOidcRegistrations.set(context.context, {});
+			}
+		},
 		additionalFields: {
 			username: { type: 'string', required: false, input: false },
 			displayUsername: { type: 'string', required: false, input: false },
@@ -120,22 +139,63 @@ export const auth = betterAuth({
 					return { data: { ...newUser, email } };
 				},
 				after: async (newUser, context) => {
-					// genericOAuth commits the user/account before attempting the session.
-					// Defer bootstrap promotion until the session hook confirms persistence.
+					const registration = context?.context
+						? pendingOidcRegistrations.get(context.context)
+						: undefined;
+					if (registration) {
+						// OIDC persists its account before its session; promote only after the
+						// endpoint confirms that session belongs to this newly-created user.
+						registration.userId = newUser.id;
+						return;
+					}
+
+					// Even if an OIDC callback reaches user creation without a validation
+					// marker, it must never fall through to password registration promotion.
 					if (context?.path === '/callback/:id' && context.params?.id === 'oidc') return;
 
 					await assignInitialAdministrator(newUser.id);
 				}
 			}
 		},
-		session: {
-			create: {
-				after: async (newSession, context) => {
-					if (context?.path === '/callback/:id' && context.params?.id === 'oidc') {
-						await assignInitialAdministrator(newSession.userId);
-					}
-				}
+	},
+	hooks: {
+		after: createAuthMiddleware(async (context) => {
+			const registration = pendingOidcRegistrations.get(context.context);
+			if (!registration) return;
+			pendingOidcRegistrations.delete(context.context);
+
+			const userId = registration.userId;
+			const isOidcCallback = context.path === '/callback/:id' && context.params?.id === 'oidc';
+			if (!userId || (!isOidcCallback && context.path !== '/sign-in/social')) return;
+
+			const newSession = context.context.newSession;
+			if (
+				!newSession ||
+				newSession.user.id !== userId ||
+				newSession.session.userId !== userId
+			) {
+				return;
 			}
-		}
+
+			const role = await assignInitialAdministrator(userId);
+			context.context.setNewSession({
+				...newSession,
+				user: { ...newSession.user, role }
+			});
+
+			const returned = context.context.returned;
+			if (returned instanceof Response) {
+				if (returned.status !== 200) return;
+				const payload: unknown = await returned.clone().json();
+				if (isRecord(payload) && isRecord(payload.user)) {
+					return context.json({
+						...payload,
+						user: { ...payload.user, role }
+					});
+				}
+			} else if (isRecord(returned) && isRecord(returned.user)) {
+				returned.user.role = role;
+			}
+		})
 	}
 });
