@@ -1,10 +1,12 @@
 import { building } from '$app/env';
 import { APIError, betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { username } from 'better-auth/plugins';
 import { db } from './db';
 import * as schema from './schema';
 import { assignInitialAdministrator } from './registration';
+import { isRegistrationEmailAllowed, validateAuthConfiguration } from './auth-config';
 
 const secret = process.env.BETTER_AUTH_SECRET;
 
@@ -13,18 +15,32 @@ if ((!secret && !building) || (secret && secret.length < 32)) {
 }
 
 const baseURL = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000';
+export const authConfiguration = validateAuthConfiguration(process.env);
+export const authFeatures = {
+	passwordEnabled: authConfiguration.passwordEnabled,
+	oidcEnabled: Boolean(authConfiguration.oidc)
+};
 
-function normalizeEmail(email: string) {
-	return email.trim().toLowerCase();
-}
-
-function isRegistrationEmailAllowed(email: string) {
-	const configured = process.env.REGISTRATION_EMAIL_ALLOWLIST?.trim();
-	if (!configured) return true;
-
-	const allowedEmails = new Set(configured.split(',').map(normalizeEmail).filter(Boolean));
-	return allowedEmails.has(normalizeEmail(email));
-}
+const plugins = [
+	username({ minUsernameLength: 3, maxUsernameLength: 30, immutableUsername: true }),
+	...(authConfiguration.oidc
+		? [
+				genericOAuth({
+					config: [
+						{
+							providerId: 'oidc',
+							name: 'OpenID Connect',
+							discoveryUrl: authConfiguration.oidc.discoveryUrl,
+							clientId: authConfiguration.oidc.clientId,
+							clientSecret: authConfiguration.oidc.clientSecret,
+							scopes: ['openid', 'email', 'profile'],
+							requireIdTokenVerification: true
+						}
+					]
+				})
+			]
+		: [])
+];
 
 export const auth = betterAuth({
 	baseURL,
@@ -34,13 +50,22 @@ export const auth = betterAuth({
 	// supported create.after hook then runs only after those writes commit.
 	database: drizzleAdapter(db, { provider: 'pg', schema, transaction: true }),
 	trustedOrigins: [baseURL],
+	account: {
+		accountLinking: {
+			enabled: true,
+			disableImplicitLinking: true,
+			trustedProviders: ['oidc']
+		}
+	},
 	emailAndPassword: {
-		enabled: true,
+		enabled: authConfiguration.passwordEnabled,
 		requireEmailVerification: false,
 		minPasswordLength: 12
 	},
 	user: {
 		additionalFields: {
+			username: { type: 'string', required: false, input: false },
+			displayUsername: { type: 'string', required: false, input: false },
 			role: {
 				type: 'string',
 				required: false,
@@ -49,7 +74,7 @@ export const auth = betterAuth({
 			}
 		}
 	},
-	plugins: [username({ minUsernameLength: 3, maxUsernameLength: 30, immutableUsername: true })],
+	plugins,
 	databaseHooks: {
 		user: {
 			create: {
@@ -64,8 +89,8 @@ export const auth = betterAuth({
 						});
 					}
 
-					const email = normalizeEmail(newUser.email);
-					if (!isRegistrationEmailAllowed(email)) {
+					const email = newUser.email.trim().toLowerCase();
+					if (!isRegistrationEmailAllowed(email, process.env.REGISTRATION_EMAIL_ALLOWLIST)) {
 						throw APIError.from('FORBIDDEN', {
 							code: 'REGISTRATION_EMAIL_NOT_ALLOWED',
 							message: 'This email address is not allowed to register.'

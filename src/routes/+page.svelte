@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Activity, ArrowUpRight, LogOut, Sparkles } from '@lucide/svelte';
+	import { Activity, ArrowUpRight, Fingerprint, LogOut, Sparkles } from '@lucide/svelte';
 	import * as Alert from '#lib/components/ui/alert';
 	import { Button } from '#lib/components/ui/button';
 	import ThemeToggle from '../lib/components/ThemeToggle.svelte';
@@ -7,7 +7,9 @@
 
 	let { data }: PageProps = $props();
 	let signingOut = $state(false);
+	let linkingIdentity = $state(false);
 	let message = $state('');
+	let linkMessage = $state('');
 
 	async function signOut() {
 		signingOut = true;
@@ -23,6 +25,28 @@
 			message = 'The server could not be reached. Please try again.';
 		} finally {
 			signingOut = false;
+		}
+	}
+
+	async function linkOidcIdentity() {
+		linkingIdentity = true;
+		linkMessage = '';
+		try {
+			const response = await fetch('/api/auth/link-social', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ provider: 'oidc', callbackURL: '/', disableRedirect: true })
+			});
+			const result = await response.json().catch(() => null);
+			if (!response.ok || typeof result?.url !== 'string') {
+				linkMessage = result?.message ?? 'The identity provider could not be reached. Try again.';
+				return;
+			}
+			window.location.assign(result.url);
+		} catch {
+			linkMessage = 'The server could not be reached. Try again in a moment.';
+		} finally {
+			linkingIdentity = false;
 		}
 	}
 </script>
@@ -114,6 +138,27 @@
 					System status
 					<ArrowUpRight aria-hidden="true" size={15} />
 				</Button>
+				{#if data.oidcEnabled}
+					<div class="border-t border-border pt-5">
+						<p class="text-sm font-medium text-foreground">Add a sign-in method</p>
+						<p class="mt-1 text-xs leading-5 text-muted-foreground">
+							Linking asks the identity provider to verify the account before it is added here.
+						</p>
+						{#if linkMessage}
+							<p class="mt-3 text-sm text-destructive" role="alert">{linkMessage}</p>
+						{/if}
+						<Button
+							type="button"
+							variant="outline"
+							disabled={linkingIdentity}
+							onclick={linkOidcIdentity}
+							class="mt-3 gap-2"
+						>
+							<Fingerprint aria-hidden="true" size={15} />
+							{linkingIdentity ? 'Opening provider…' : 'Link OIDC identity'}
+						</Button>
+					</div>
+				{/if}
 			</div>
 			<p class="mt-4 px-4 text-center text-xs leading-5 text-muted-foreground">
 				A calm, private starting point for the things that matter to you.

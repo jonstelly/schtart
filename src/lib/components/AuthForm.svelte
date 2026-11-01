@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowUpRight, ShieldAlert } from '@lucide/svelte';
+	import { ArrowUpRight, Fingerprint, ShieldAlert } from '@lucide/svelte';
 	import * as Alert from '#lib/components/ui/alert';
 	import { Button } from '#lib/components/ui/button';
 	import * as Card from '#lib/components/ui/card';
@@ -7,7 +7,11 @@
 	import { Label } from '#lib/components/ui/label';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 
-	let { mode }: { mode: 'setup' | 'register' | 'login' } = $props();
+	let {
+		mode,
+		passwordEnabled,
+		oidcEnabled
+	}: { mode: 'setup' | 'register' | 'login'; passwordEnabled: boolean; oidcEnabled: boolean } = $props();
 
 	let username = $state('');
 	let email = $state('');
@@ -16,12 +20,13 @@
 	let pending = $state(false);
 
 	const isRegistration = $derived(mode !== 'login');
+	const showPasswordAuth = $derived(passwordEnabled);
 	const copy = $derived(
 		mode === 'setup'
 			? {
 				eyebrow: 'First-run setup',
 				title: 'Claim your start page.',
-				intro: 'Create the first account to finish setup. This account becomes the administrator.',
+				intro: 'The first account to finish setup becomes the administrator. Choose an enabled sign-in method.',
 				warning:
 					'Complete setup before exposing an unclaimed instance publicly. The first person to register can claim it.'
 			}
@@ -29,16 +34,48 @@
 				? {
 					eyebrow: 'Create an account',
 					title: 'Make this page yours.',
-					intro: 'Register with an email address, username, and password.',
+					intro: passwordEnabled
+						? 'Register with an email address, username, and password, or continue with your identity provider.'
+						: 'Create an account with the identity provider configured for this instance.',
 					warning: ''
 				}
 				: {
 					eyebrow: 'Welcome back',
 					title: 'Pick up where you left off.',
-					intro: 'Sign in with your username and password.',
+					intro: passwordEnabled
+						? 'Sign in with your username and password, or continue with your identity provider.'
+						: 'Continue with the identity provider configured for this instance.',
 					warning: ''
 				}
 	);
+
+	async function continueWithOidc() {
+		message = '';
+		pending = true;
+
+		try {
+			const response = await fetch('/api/auth/sign-in/social', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					provider: 'oidc',
+					callbackURL: '/',
+					disableRedirect: true,
+					requestSignUp: true
+				})
+			});
+			const result = await response.json().catch(() => null);
+			if (!response.ok || typeof result?.url !== 'string') {
+				message = result?.message ?? 'The identity provider could not be reached. Try again.';
+				return;
+			}
+			window.location.assign(result.url);
+		} catch {
+			message = 'The server could not be reached. Try again in a moment.';
+		} finally {
+			pending = false;
+		}
+	}
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -146,6 +183,7 @@
 						</Alert.Root>
 					{/if}
 
+					{#if showPasswordAuth}
 					<form class="grid gap-4" onsubmit={submit}>
 						<div class="grid gap-2">
 							<Label for="username">Username</Label>
@@ -221,16 +259,37 @@
 							{#if !pending}<ArrowUpRight aria-hidden="true" size={16} />{/if}
 						</Button>
 					</form>
+					{/if}
 
-					<p class="mt-6 text-center text-sm text-muted-foreground">
-						{#if isRegistration}
-							Already have an account?
-							<a class="ml-1 font-medium text-link underline-offset-4 hover:underline" href="/login">Sign in</a>
-						{:else}
-							New here?
-							<a class="ml-1 font-medium text-link underline-offset-4 hover:underline" href="/register">Create an account</a>
-						{/if}
-					</p>
+					{#if oidcEnabled}
+						{#if showPasswordAuth}<div class="my-5 flex items-center gap-3 text-[0.68rem] font-medium uppercase tracking-[0.16em] text-muted-foreground"><span class="h-px flex-1 bg-border"></span>or continue with<span class="h-px flex-1 bg-border"></span></div>{/if}
+						<Button
+							type="button"
+							variant="outline"
+							disabled={pending}
+							onclick={() => continueWithOidc()}
+							class="h-11 w-full gap-2 font-semibold"
+						>
+							<Fingerprint aria-hidden="true" size={16} />
+							{mode === 'register' ? 'Create account with OIDC' : 'Continue with OIDC'}
+						</Button>
+					{/if}
+
+					{#if message && !showPasswordAuth}
+						<p class="mt-4 text-sm text-destructive" role="alert">{message}</p>
+					{/if}
+
+					{#if showPasswordAuth}
+						<p class="mt-6 text-center text-sm text-muted-foreground">
+							{#if isRegistration}
+								Already have an account?
+								<a class="ml-1 font-medium text-link underline-offset-4 hover:underline" href="/login">Sign in</a>
+							{:else}
+								New here?
+								<a class="ml-1 font-medium text-link underline-offset-4 hover:underline" href="/register">Create an account</a>
+							{/if}
+						</p>
+					{/if}
 				</Card.Content>
 			</Card.Root>
 			<p class="mt-4 px-4 text-center text-xs leading-5 text-muted-foreground">
