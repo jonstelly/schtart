@@ -37,7 +37,7 @@ Schtart uses the issuer's OpenID Connect discovery document at `<OIDC_ISSUER_URL
 
 OIDC-created accounts use the same registration allowlist and atomic first-administrator assignment as password accounts. Matching email addresses never merge identities automatically. To link the configured OIDC identity to an existing account, the user must be signed in and complete the provider's authorization flow from the account page; account linking is restricted to the existing account's email address. The provider must return an ID token that Better Auth can verify against discovery metadata and the issuer's JWKS. Email is still not locally verified or treated as proof of ownership, so protect the deployment's registration policy and complete first-run setup before public exposure.
 
-To run PostgreSQL integration tests, use an isolated disposable database whose name ends with `test` (for example, `schtart_test`). The integration test setup applies real migrations and clears only the auth tables in that explicitly designated test database:
+To run PostgreSQL integration tests, use an isolated disposable database whose name ends with `test` (for example, `schtart_test`). The integration test setup applies real migrations and clears only auth and dashboard-configuration tables in that explicitly designated test database:
 
 ```sh
 TEST_DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/schtart_test pnpm test:integration

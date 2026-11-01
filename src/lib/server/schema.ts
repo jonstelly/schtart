@@ -3,6 +3,7 @@ import {
 	boolean,
 	check,
 	index,
+	integer,
 	pgTable,
 	text,
 	timestamp,
@@ -81,3 +82,22 @@ export const verification = pgTable(
 	},
 	(table) => [index('verification_identifier_idx').on(table.identifier)]
 );
+
+export const dashboardServerDefault = pgTable(
+	'dashboard_server_default',
+	{
+		id: integer('id').primaryKey(),
+		yaml: text('yaml').notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [check('dashboard_server_default_singleton_check', sql`${table.id} = 1`)]
+);
+
+export const dashboardUserConfiguration = pgTable('dashboard_user_configuration', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	yaml: text('yaml').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});

@@ -35,7 +35,8 @@ describe('authenticated start page theme continuity', () => {
 		expect(page).toContain('bg-background text-foreground');
 		expect(page).toContain('text-heading');
 		expect(page).toContain('text-muted-foreground');
-		expect(page).toContain('variant="destructive"');
+		expect(page).toContain('text-destructive');
+		expect(page).toContain('aria-label="Dashboard pages"');
 		expect(page).toContain("import ThemeToggle from '../lib/components/ThemeToggle.svelte'");
 		expect(page).toContain("import { Button } from '#lib/components/ui/button'");
 		expect(page).not.toMatch(/#[\da-f]{3,8}\b/i);

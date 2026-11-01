@@ -20,7 +20,7 @@ export async function prepareIntegrationDatabase() {
 export async function resetIntegrationDatabase() {
 	await verifyIntegrationDatabase();
 	await db.execute(
-		sql`TRUNCATE TABLE "session", "account", "verification", "user" RESTART IDENTITY CASCADE`
+		sql`TRUNCATE TABLE "dashboard_user_configuration", "dashboard_server_default", "session", "account", "verification", "user" RESTART IDENTITY CASCADE`
 	);
 }
 
