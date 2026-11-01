@@ -119,8 +119,21 @@ export const auth = betterAuth({
 
 					return { data: { ...newUser, email } };
 				},
-				after: async (newUser) => {
+				after: async (newUser, context) => {
+					// genericOAuth commits the user/account before attempting the session.
+					// Defer bootstrap promotion until the session hook confirms persistence.
+					if (context?.path === '/callback/:id' && context.params?.id === 'oidc') return;
+
 					await assignInitialAdministrator(newUser.id);
+				}
+			}
+		},
+		session: {
+			create: {
+				after: async (newSession, context) => {
+					if (context?.path === '/callback/:id' && context.params?.id === 'oidc') {
+						await assignInitialAdministrator(newSession.userId);
+					}
 				}
 			}
 		}

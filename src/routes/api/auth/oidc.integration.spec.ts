@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import {
 	closeIntegrationDatabase,
 	prepareIntegrationDatabase,
@@ -97,6 +97,32 @@ async function oauthRequest(
 		})
 	});
 	return { start, callback, cookie: updateCookies(cookie, callback) };
+}
+
+async function prepareOidcRegistrationCallback(identity: OidcIdentity) {
+	provider.useIdentity(identity);
+	const start = await postAuth({
+		request: request('sign-in/social', 'POST', {
+			provider: 'oidc',
+			callbackURL: '/',
+			disableRedirect: true,
+			loginHint: identity.sub
+		})
+	});
+	const payload = await start.json();
+	if (!start.ok || typeof payload.url !== 'string') {
+		throw new Error('Unable to start concurrent OIDC registration.');
+	}
+
+	const providerResponse = await fetch(payload.url, { redirect: 'manual' });
+	const callbackUrl = providerResponse.headers.get('location');
+	if (providerResponse.status !== 302 || !callbackUrl) {
+		throw new Error(`Test identity provider did not redirect: ${providerResponse.status}`);
+	}
+
+	return new Request(callbackUrl, {
+		headers: { cookie: updateCookies(undefined, start) }
+	});
 }
 
 describe('OIDC authentication and account linking', () => {
@@ -225,6 +251,85 @@ describe('OIDC authentication and account linking', () => {
 		expect(sessionCookie(existingUserSignIn.callback!)).toBeDefined();
 		expect(await db.select({ id: user.id }).from(user)).toHaveLength(1);
 		expect(await db.select({ role: user.role }).from(user)).toEqual([{ role: 'admin' }]);
+	});
+
+	it('does not claim the first administrator until an OIDC session is persisted', async () => {
+		await db.execute(
+			sql`ALTER TABLE "session" DROP CONSTRAINT IF EXISTS "oidc_session_persistence_failure"`
+		);
+		await db.execute(
+			sql`ALTER TABLE "session" ADD CONSTRAINT "oidc_session_persistence_failure" CHECK (false)`
+		);
+		try {
+			const failedRegistration = await oauthRequest('sign-in/social', {
+				sub: 'oidc-session-failure',
+				email: 'oidc-session-failure@example.test',
+				name: 'Failed Session Registration'
+			});
+
+			expect(failedRegistration.callback?.status).not.toBe(302);
+			expect(sessionCookie(failedRegistration.callback!)).toBeUndefined();
+			expect(await db.select({ id: session.id }).from(session)).toHaveLength(0);
+			expect(await db.select({ id: account.id }).from(account)).toHaveLength(1);
+			expect(await db.select({ role: user.role }).from(user)).toEqual([{ role: 'user' }]);
+			expect(await hasAdministrator()).toBe(false);
+		} finally {
+			await db.execute(
+				sql`ALTER TABLE "session" DROP CONSTRAINT IF EXISTS "oidc_session_persistence_failure"`
+			);
+		}
+
+		const successfulRegistration = await oauthRequest('sign-in/social', {
+			sub: 'oidc-session-success',
+			email: 'oidc-session-success@example.test',
+			name: 'Successful Session Registration'
+		});
+
+		expect(successfulRegistration.callback?.status).toBe(302);
+		const successfulSessionCookie = sessionCookie(successfulRegistration.callback!);
+		expect(successfulSessionCookie).toBeDefined();
+		expect(
+			await db
+				.select({ role: user.role })
+				.from(user)
+				.where(eq(user.email, 'oidc-session-failure@example.test'))
+		).toEqual([{ role: 'user' }]);
+		expect(
+			await db
+				.select({ role: user.role })
+				.from(user)
+				.where(eq(user.email, 'oidc-session-success@example.test'))
+		).toEqual([{ role: 'admin' }]);
+		expect(await db.select({ id: user.id }).from(user).where(eq(user.role, 'admin'))).toHaveLength(1);
+		expect(await hasAdministrator()).toBe(true);
+
+		const sessionResponse = await getAuth({
+			request: request('get-session', 'GET', undefined, successfulSessionCookie)
+		});
+		expect(await sessionResponse.json()).toMatchObject({
+			user: { email: 'oidc-session-success@example.test', role: 'admin' }
+		});
+	});
+
+	it('promotes exactly one first administrator for concurrent OIDC registrations', async () => {
+		const callbackRequests: Request[] = [];
+		for (let index = 0; index < 6; index++) {
+			callbackRequests.push(
+				await prepareOidcRegistrationCallback({
+					sub: `oidc-racer-${index}`,
+					email: `oidc-racer-${index}@example.test`,
+					name: `OIDC Racer ${index}`
+				})
+			);
+		}
+
+		const responses = await Promise.all(
+			callbackRequests.map((callbackRequest) => getAuth({ request: callbackRequest }))
+		);
+		expect(responses.every((response) => response.status === 302)).toBe(true);
+		expect(responses.every((response) => Boolean(sessionCookie(response)))).toBe(true);
+		expect(await db.select({ id: user.id }).from(user).where(eq(user.role, 'admin'))).toHaveLength(1);
+		expect(await db.select({ id: session.id }).from(session)).toHaveLength(callbackRequests.length);
 	});
 
 	it('enforces the OIDC registration allowlist without claiming an unclaimed instance', async () => {
