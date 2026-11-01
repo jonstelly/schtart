@@ -6,7 +6,7 @@ import {
 	resetIntegrationDatabase
 } from '../../../../tests/integration/database';
 import { LocalOidcProvider, type OidcIdentity } from '../../../../tests/integration/local-oidc-provider';
-import { account, user } from '../../../lib/server/schema';
+import { account, session, user } from '../../../lib/server/schema';
 import { db } from '../../../lib/server/db';
 import { hasAdministrator } from '../../../lib/server/registration';
 
@@ -118,6 +118,8 @@ describe('OIDC authentication and account linking', () => {
 
 	beforeEach(async () => {
 		delete process.env.REGISTRATION_EMAIL_ALLOWLIST;
+		provider.setOmitIdToken(false);
+		provider.setDiscoveryIssuer();
 		await resetIntegrationDatabase();
 	});
 
@@ -162,6 +164,22 @@ describe('OIDC authentication and account linking', () => {
 
 		expect(registration.start.status).toBe(200);
 		expect(await db.select({ id: user.id }).from(user)).toHaveLength(0);
+		expect(await hasAdministrator()).toBe(false);
+	});
+
+	it('rejects an access-token-only response without creating an account, session, or administrator', async () => {
+		provider.setOmitIdToken(true);
+		const result = await oauthRequest('sign-in/social', {
+			sub: 'access-token-only-subject',
+			email: 'access-token-only@example.test',
+			name: 'Access Token Only'
+		});
+
+		expect(result.start.status).toBe(200);
+		expect(sessionCookie(result.callback!)).toBeUndefined();
+		expect(await db.select({ id: user.id }).from(user)).toHaveLength(0);
+		expect(await db.select({ id: account.id }).from(account)).toHaveLength(0);
+		expect(await db.select({ id: session.id }).from(session)).toHaveLength(0);
 		expect(await hasAdministrator()).toBe(false);
 	});
 

@@ -54,6 +54,8 @@ export class LocalOidcProvider {
 		name: 'Default User',
 		emailVerified: true
 	};
+	private omitIdToken = false;
+	private discoveryIssuer?: string;
 	private server?: Server;
 	issuerUrl = '';
 
@@ -80,12 +82,20 @@ export class LocalOidcProvider {
 		this.nextIdentity = { emailVerified: true, ...identity };
 	}
 
+	setOmitIdToken(omit: boolean) {
+		this.omitIdToken = omit;
+	}
+
+	setDiscoveryIssuer(issuer?: string) {
+		this.discoveryIssuer = issuer;
+	}
+
 	private async handle(request: IncomingMessage, response: ServerResponse) {
 		try {
 			const url = new URL(request.url ?? '/', this.issuerUrl);
 			if (request.method === 'GET' && url.pathname === '/.well-known/openid-configuration') {
 				return json(response, 200, {
-					issuer: this.issuerUrl,
+					issuer: this.discoveryIssuer ?? this.issuerUrl,
 					authorization_endpoint: `${this.issuerUrl}/authorize`,
 					token_endpoint: `${this.issuerUrl}/token`,
 					userinfo_endpoint: `${this.issuerUrl}/userinfo`,
@@ -149,7 +159,7 @@ export class LocalOidcProvider {
 				);
 				const payload = Buffer.from(
 					JSON.stringify({
-						iss: this.issuerUrl,
+						iss: this.discoveryIssuer ?? this.issuerUrl,
 						sub: pending.identity.sub,
 						aud: form.get('client_id'),
 						exp: now + 300,
@@ -168,7 +178,7 @@ export class LocalOidcProvider {
 					access_token: accessToken,
 					token_type: 'Bearer',
 					expires_in: 300,
-					id_token: `${input}.${signature}`
+					...(this.omitIdToken ? {} : { id_token: `${input}.${signature}` })
 				});
 			}
 			if (request.method === 'GET' && url.pathname === '/userinfo') {

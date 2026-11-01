@@ -21,20 +21,38 @@ export const authFeatures = {
 	oidcEnabled: Boolean(authConfiguration.oidc)
 };
 
+const oidcConfiguration = authConfiguration.oidc;
 const plugins = [
 	username({ minUsernameLength: 3, maxUsernameLength: 30, immutableUsername: true }),
-	...(authConfiguration.oidc
+	...(oidcConfiguration
 		? [
 				genericOAuth({
 					config: [
 						{
 							providerId: 'oidc',
 							name: 'OpenID Connect',
-							discoveryUrl: authConfiguration.oidc.discoveryUrl,
-							clientId: authConfiguration.oidc.clientId,
-							clientSecret: authConfiguration.oidc.clientSecret,
+							discoveryUrl: oidcConfiguration.discoveryUrl,
+							clientId: oidcConfiguration.clientId,
+							clientSecret: oidcConfiguration.clientSecret,
 							scopes: ['openid', 'email', 'profile'],
-							requireIdTokenVerification: true
+							requireIdTokenVerification: true,
+							accountSubject: ({ tokens, profile }) => {
+								// genericOAuth falls back to UserInfo when no ID token is returned.
+								// Gate identity resolution after Better Auth's built-in ID-token verification.
+								if (!tokens.idToken) {
+									throw new Error('OIDC provider did not return a required ID token.');
+								}
+								if (profile.iss !== oidcConfiguration.issuerUrl) {
+									throw new Error('OIDC provider issuer does not match OIDC_ISSUER_URL.');
+								}
+								if (
+									typeof profile.sub !== 'string' &&
+									typeof profile.sub !== 'number'
+								) {
+									throw new Error('OIDC provider did not return a stable subject.');
+								}
+								return profile.sub;
+							}
 						}
 					]
 				})
