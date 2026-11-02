@@ -1,6 +1,4 @@
-import postgres from 'postgres';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { runDatabaseMigrations } from './database-migrations.mjs';
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -9,11 +7,22 @@ if (!databaseUrl) {
 	process.exit(1);
 }
 
-const client = postgres(databaseUrl, { max: 1, connect_timeout: 10 });
-
 try {
-	await migrate(drizzle(client), { migrationsFolder: './drizzle' });
+	await runDatabaseMigrations(databaseUrl);
 	console.log('Database migrations are up to date.');
-} finally {
-	await client.end({ timeout: 5 });
+} catch (error) {
+	console.error(formatError(error));
+	process.exitCode = 1;
+}
+
+function formatError(error) {
+	const messages = [];
+	const visited = new Set();
+	for (let current = error; current && !visited.has(current); current = current.cause) {
+		visited.add(current);
+		if (typeof current.message === 'string' && !messages.includes(current.message)) {
+			messages.push(current.message);
+		}
+	}
+	return messages.join('\nCaused by: ') || String(error);
 }
