@@ -68,6 +68,9 @@ accounts, configure a comma-separated list of exact email addresses; comparisons
 and ignore case. The allowlist applies to password and OIDC account creation only and never blocks
 an existing user from signing in. Domain wildcards are not supported.
 
+Password registration requires at least six characters. Longer, unique passphrases are recommended
+for stronger account security.
+
 Password authentication is enabled by default. To run OIDC-only, set
 `PASSWORD_AUTH_ENABLED=false` and configure all three OIDC values; startup rejects partial settings
 or a deployment with no authentication method enabled:

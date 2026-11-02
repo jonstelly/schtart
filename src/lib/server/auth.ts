@@ -5,6 +5,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { username } from 'better-auth/plugins';
 import { decodeJwt } from 'jose';
+import { MIN_PASSWORD_LENGTH } from '../password-policy';
 import { db } from './db';
 import * as schema from './schema';
 import { assignInitialAdministrator } from './registration';
@@ -90,7 +91,7 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: authConfiguration.passwordEnabled,
 		requireEmailVerification: false,
-		minPasswordLength: 12
+		minPasswordLength: MIN_PASSWORD_LENGTH
 	},
 	user: {
 		validateUserInfo: ({ source }, context) => {

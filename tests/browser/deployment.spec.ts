@@ -26,12 +26,20 @@ test.describe('password-only authentication', () => {
 		await expect(page).toHaveURL(/\/setup$/);
 		await expect(page.getByLabel('Username')).toBeVisible();
 		await expect(page.getByLabel('Email address')).toBeVisible();
-		await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+		const password = page.getByLabel('Password', { exact: true });
+		await expect(password).toBeVisible();
+		await expect(password).toHaveAttribute('minlength', '6');
+		await expect(password).toHaveAttribute('placeholder', 'At least 6 characters');
+		await expect(page.getByText('Use at least 6 characters.')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Continue with OIDC' })).toHaveCount(0);
 
 		await page.getByLabel('Username').fill('passwordonly');
 		await page.getByLabel('Email address').fill('password-only@example.test');
-		await page.getByLabel('Password', { exact: true }).fill('test-password-1234');
+		await password.fill('12345');
+		await expect.poll(() => password.evaluate((input: HTMLInputElement) => input.validity.tooShort)).toBe(
+			true
+		);
+		await password.fill('123456');
 		await page.getByRole('button', { name: 'Create account', exact: true }).click();
 		await expect(page).toHaveURL('/');
 
@@ -42,7 +50,7 @@ test.describe('password-only authentication', () => {
 		await expect(page.getByRole('button', { name: 'Continue with OIDC' })).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Create an account' })).toBeVisible();
 		await page.getByLabel('Username').fill('passwordonly');
-		await page.getByLabel('Password', { exact: true }).fill('test-password-1234');
+		await page.getByLabel('Password', { exact: true }).fill('123456');
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 		await expect(page).toHaveURL('/');
 	});
