@@ -52,4 +52,30 @@ describe('project command environment', () => {
 			shell: 'from-shell'
 		});
 	});
+
+	it('loads the explicitly selected mode rather than the command default', () => {
+		const envDirectory = mkdtempSync(resolve(tmpdir(), 'schtart-command-mode-'));
+		envDirectories.push(envDirectory);
+		writeFileSync(resolve(envDirectory, '.env.production'), 'SCHTART_ENV_MODE=production\n');
+		writeFileSync(resolve(envDirectory, '.env.development'), 'SCHTART_ENV_MODE=development\n');
+
+		const result = spawnSync(
+			process.execPath,
+			[
+				resolve('scripts/run-command.mjs'),
+				'production',
+				'--',
+				process.execPath,
+				'-e',
+				'process.stdout.write(process.env.SCHTART_ENV_MODE)',
+				'--',
+				'--mode',
+				'development'
+			],
+			{ cwd: envDirectory, encoding: 'utf8', env: process.env }
+		);
+
+		expect(result.status).toBe(0);
+		expect(result.stdout).toBe('development');
+	});
 });
