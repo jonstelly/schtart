@@ -51,8 +51,9 @@ Run from the repo root.
 
 ## Verification
 
-- Inner loop: `pnpm test` for changed behavior. Changed behavior gets a regression test.
-- Before handoff: `pnpm check`, `pnpm test`, `pnpm build`. Run the Docker build when `Dockerfile` or dependencies change.
+- Add regression coverage for meaningful runtime behavior changes. Pure styling, copy, and documentation edits generally need no new behavioral tests; use existing contrast or accessibility checks when they protect a touched invariant.
+- Run `pnpm check` for Svelte/TypeScript changes and `pnpm build` for production, adapter, or bundling changes. Run integration, browser, database, and Docker suites only when their boundaries change or the issue requires them.
+- Before handoff, run only the relevant checks above. Avoid rerunning the full local suite after each edit or push; GitHub Actions provides aggregate checks on PRs and `main`.
 
 ## Agent skills
 
