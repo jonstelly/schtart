@@ -1,0 +1,115 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Unit tests (no database)
+        run: pnpm test
+      - run: pnpm check
+      - run: pnpm build
+
+  # Retain this required status context; checks performs the work once.
+  unit-check-build:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Unit, type, and build checks passed."
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: schtart
+          POSTGRES_PASSWORD: schtart-test-only
+          POSTGRES_DB: schtart_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U schtart -d schtart_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgres://schtart:schtart-test-only@localhost:5432/schtart_test
+      BETTER_AUTH_SECRET: ci-test-secret-only-not-for-production-0123456789
+      BETTER_AUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm test:integration
+
+  postgres-integration-browser:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: schtart
+          POSTGRES_PASSWORD: schtart-test-only
+          POSTGRES_DB: schtart_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U schtart -d schtart_ci_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://schtart:schtart-test-only@127.0.0.1:5432/schtart_ci_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply production migrations explicitly
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+      - name: PostgreSQL integration tests
+        run: pnpm test:integration
+      - run: pnpm build
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Browser journeys with local OIDC provider
+        run: pnpm test:browser
+      - name: Build production container
+        run: docker build -t schtart:ticket7 .
+      - name: Verify Docker health and SIGTERM lifecycle
+        run: pnpm test:docker-lifecycle

@@ -1,0 +1,68 @@
+{
+	"name": "schtart",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "node scripts/run-command.mjs development -- vite dev",
+		"build": "node scripts/run-command.mjs production -- vite build",
+		"preview": "node scripts/run-command.mjs production -- vite preview",
+		"prepare": "node scripts/run-command.mjs development -- svelte-kit sync || echo ''",
+		"check": "node scripts/run-command.mjs development -- svelte-kit sync && node scripts/run-command.mjs development -- svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "node scripts/run-command.mjs development -- svelte-kit sync && node scripts/run-command.mjs development -- svelte-check --tsconfig ./tsconfig.json --watch",
+		"test:unit": "node scripts/run-command.mjs test -- vitest",
+		"test": "node scripts/run-command.mjs test -- vitest run",
+		"test:integration": "node scripts/run-command.mjs test -- node scripts/test-integration.mjs",
+		"test:browser": "node scripts/run-command.mjs test -- node scripts/test-browser.mjs",
+		"test:docker-lifecycle": "node scripts/run-command.mjs test -- node scripts/test-docker-lifecycle.mjs",
+		"db:generate": "node scripts/run-command.mjs development -- drizzle-kit generate",
+		"db:migrate": "node scripts/run-command.mjs development -- node scripts/db-migrate.mjs"
+	},
+	"devDependencies": {
+		"@fontsource-variable/instrument-sans": "^5.3.0",
+		"@fontsource/instrument-serif": "^5.3.0",
+		"@internationalized/date": "^3.12.4",
+		"@lucide/svelte": "^1.66.0",
+		"@playwright/test": "^1.64.1",
+		"@sveltejs/adapter-node": "^6.0.1",
+		"@sveltejs/kit": "^3.0.0",
+		"@sveltejs/vite-plugin-svelte": "^7.2.0",
+		"@tailwindcss/vite": "^4.3.3",
+		"@types/node": "^26.6.6",
+		"bits-ui": "^2.20.2",
+		"cn": "^0.5.1",
+		"drizzle-kit": "^0.31.11",
+		"shadcn-svelte": "^1.7.2",
+		"svelte": "^5.57.2",
+		"svelte-check": "^4.6.0",
+		"tailwind-variants": "^3.3.1",
+		"tailwindcss": "^4.3.3",
+		"tw-animate-css": "^1.4.0",
+		"typescript": "^6.0.3",
+		"vite": "^8.3.0",
+		"vitest": "^4.1.8"
+	},
+	"imports": {
+		"#lib": "./src/lib/index.js",
+		"#lib/*": "./src/lib/*"
+	},
+	"packageManager": "pnpm@12.16.1",
+	"engines": {
+		"node": ">=26"
+	},
+	"dependencies": {
+		"@codemirror/commands": "^6.11.1",
+		"@codemirror/lang-yaml": "^6.1.3",
+		"@codemirror/language": "^6.13.1",
+		"@codemirror/state": "^6.7.6",
+		"@codemirror/view": "^6.43.15",
+		"@lezer/highlight": "^1.2.5",
+		"better-auth": "^1.7.14",
+		"croner": "^11.0.0",
+		"drizzle-orm": "^0.45.4",
+		"jose": "^6.2.14",
+		"postgres": "^4.0.0",
+		"yaml": "^2.9.1",
+		"zod": "^4.6.7"
+	}
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD CONSTRAINT "user_role_check" CHECK ("user"."role" IN ('admin', 'user'));
