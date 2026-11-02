@@ -34,6 +34,18 @@ const image = process.env.SCHTART_TEST_DOCKER_IMAGE ?? 'schtart:ticket7';
 try {
 	runDocker([
 		'run',
+		'--rm',
+		'--network',
+		'host',
+		'--env',
+		`DATABASE_URL=${databaseUrl}`,
+		image,
+		'node',
+		'scripts/db-migrate.mjs'
+	]);
+
+	runDocker([
+		'run',
 		'--detach',
 		'--name',
 		containerName,

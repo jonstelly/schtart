@@ -17,6 +17,7 @@ COPY --from=build /app/build ./build
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/scripts/db-migrate.mjs ./scripts/db-migrate.mjs
+COPY --from=build /app/scripts/database-migrations.mjs ./scripts/database-migrations.mjs
 COPY package.json .
 USER node
 EXPOSE 3000
