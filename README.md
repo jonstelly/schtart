@@ -49,8 +49,13 @@ Docker/Kubernetes guidance, and authentication limitations.
 
 ## PostgreSQL and authentication
 
-Create an application-specific PostgreSQL database and set `DATABASE_URL`. Apply `pnpm db:migrate`
-before starting the app; the command is repeatable and does not drop or reset application data.
+Set `DATABASE_URL` to an application-specific PostgreSQL database. `pnpm db:migrate` creates that
+database when it is missing by connecting to the server's `postgres` maintenance database, then
+applies pending migrations. The configured PostgreSQL role needs `CONNECT` on `postgres` and
+`CREATEDB` only when the target database is missing; migrating an existing database does not require
+`CREATEDB`. For deployments, provision the database separately if the application role should not
+have database-creation privileges. Migrations are repeatable and do not drop or reset application
+data.
 
 An unclaimed instance sends visitors to `/setup`. The first successful password or OIDC
 registration becomes administrator; later registrations become ordinary users. Complete setup
