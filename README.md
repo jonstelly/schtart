@@ -11,10 +11,15 @@ Schtart uses an existing PostgreSQL database; it does not provision one locally.
 pnpm install --frozen-lockfile
 cp .env.example .env
 # Edit .env with the PostgreSQL connection and a unique random auth secret.
-set -a && . ./.env && set +a
 pnpm db:migrate # apply pending non-destructive migrations explicitly
 pnpm dev        # Vite dev server
 ```
+
+Project commands load `.env`, `.env.local`, and the applicable mode files (`.env.development`,
+`.env.test`, or `.env.production`, plus each mode's `.local` variant). More specific files override
+less specific ones, while variables already set in the shell take precedence over all env files.
+Vite exposes only variables prefixed with `VITE_` to client-side code; never use that prefix for
+secrets.
 
 Migrations are never applied implicitly at app startup. `pnpm db:generate` creates a migration from
 the Drizzle schema during development.
