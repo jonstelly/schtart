@@ -47,8 +47,13 @@ async function createDatabaseThroughPostgres(databaseUrl, connect) {
 			try {
 				await maintenanceClient.unsafe(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
 			} catch (error) {
-				// Another migration process may have created it after the existence check.
-				if (!hasPostgresCode(error, '42P04')) throw error;
+				// PostgreSQL may report a duplicate name or a catalog uniqueness race.
+				if (!hasPostgresCode(error, '42P04') && !hasPostgresCode(error, '23505')) throw error;
+				const createdByAnotherProcess = await maintenanceClient.unsafe(
+					'SELECT 1 FROM pg_database WHERE datname = $1',
+					[databaseName]
+				);
+				if (createdByAnotherProcess.length === 0) throw error;
 			}
 		}
 	} catch (error) {

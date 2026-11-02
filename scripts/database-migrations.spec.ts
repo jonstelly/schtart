@@ -65,25 +65,60 @@ describe('database migrations', () => {
 		expect(secondTargetClient.end).toHaveBeenCalledOnce();
 	});
 
-	it('continues if another process creates the database first', async () => {
+	it.each(['42P04', '23505'])(
+		'continues if another process creates the database first (%s)',
+		async (code) => {
+			let existenceChecks = 0;
+			const clients = [
+				client(),
+				client(async (query) => {
+					if (query === 'SELECT 1 FROM pg_database WHERE datname = $1') {
+						existenceChecks += 1;
+						return existenceChecks === 1 ? [] : [{ datname: 'schtart"blue' }];
+					}
+					throw postgresError(code);
+				}),
+				client()
+			];
+			const connect = vi.fn(() => clients.shift()!);
+			const applyMigrations = vi
+				.fn<(...args: unknown[]) => Promise<void>>()
+				.mockRejectedValueOnce(drizzleMissingDatabaseError())
+				.mockResolvedValueOnce(undefined);
+
+			await expect(
+				runDatabaseMigrations(databaseUrl, { connect, applyMigrations })
+			).resolves.toBeUndefined();
+			expect(existenceChecks).toBe(2);
+			expect(applyMigrations).toHaveBeenCalledTimes(2);
+		}
+	);
+
+	it('does not treat an unrelated catalog uniqueness violation as a creation race', async () => {
+		let existenceChecks = 0;
+		const duplicateError = postgresError('23505');
 		const clients = [
 			client(),
 			client(async (query) => {
-				if (query === 'SELECT 1 FROM pg_database WHERE datname = $1') return [];
-				throw postgresError('42P04');
-			}),
-			client()
+				if (query === 'SELECT 1 FROM pg_database WHERE datname = $1') {
+					existenceChecks += 1;
+					return [];
+				}
+				throw duplicateError;
+			})
 		];
 		const connect = vi.fn(() => clients.shift()!);
-		const applyMigrations = vi
-			.fn<(...args: unknown[]) => Promise<void>>()
-			.mockRejectedValueOnce(drizzleMissingDatabaseError())
-			.mockResolvedValueOnce(undefined);
+		const applyMigrations = vi.fn(async () => {
+			throw drizzleMissingDatabaseError();
+		});
 
-		await expect(runDatabaseMigrations(databaseUrl, { connect, applyMigrations })).resolves.toBe(
-			undefined
-		);
-		expect(applyMigrations).toHaveBeenCalledTimes(2);
+		const error = await runDatabaseMigrations(databaseUrl, {
+			connect,
+			applyMigrations
+		}).catch((caught) => caught);
+		expect(error.cause).toBe(duplicateError);
+		expect(existenceChecks).toBe(2);
+		expect(applyMigrations).toHaveBeenCalledOnce();
 	});
 
 	it('does not try to create a database for unrelated migration failures', async () => {
