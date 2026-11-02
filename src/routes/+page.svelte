@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { ArrowRight, Fingerprint, LayoutGrid, LogOut, Settings2 } from '@lucide/svelte';
+	import { Fingerprint, LayoutGrid, LogOut, Settings2 } from '@lucide/svelte';
 	import { Button } from '#lib/components/ui/button';
 	import DashboardConfigurationEditor from '../lib/components/DashboardConfigurationEditor.svelte';
 	import DashboardWidgetCard from '../lib/components/DashboardWidgetCard.svelte';
@@ -8,19 +7,30 @@
 	import {
 		DASHBOARD_PAGES,
 		DASHBOARD_PAGE_LABELS,
-		type DashboardConfiguration,
 		type DashboardPageName,
 		type EffectiveDashboardConfiguration
 	} from '../lib/dashboard';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	let configuration = $state<DashboardConfiguration | null>(null);
-	let configurationYaml = $state('');
-	let configurationSource = $state<'default' | 'user'>('default');
+	let dashboardConfigurationOverride = $state<{
+		userId: string;
+		serverFingerprint: string;
+		value: EffectiveDashboardConfiguration;
+	} | null>(null);
+	const serverConfigurationFingerprint = $derived(
+		`${data.dashboardConfiguration.source}\0${data.dashboardConfiguration.yaml}`
+	);
+	const dashboardConfiguration = $derived(
+		dashboardConfigurationOverride?.userId === data.user.id &&
+			dashboardConfigurationOverride.serverFingerprint === serverConfigurationFingerprint
+			? dashboardConfigurationOverride.value
+			: data.dashboardConfiguration
+	);
+	const configuration = $derived(dashboardConfiguration.configuration);
+	const configurationYaml = $derived(dashboardConfiguration.yaml);
+	const configurationSource = $derived(dashboardConfiguration.source);
 	let activePage = $state<DashboardPageName | 'admin'>('home');
-	let loading = $state(true);
-	let pageError = $state('');
 	let editorOpen = $state(false);
 	let adminDefaultYaml = $state('');
 	let loadingAdminDefault = $state(false);
@@ -43,30 +53,14 @@
 			: pageDescriptions[activePage]
 	);
 	const activePageLabel = $derived(activePage === 'admin' ? 'Admin' : DASHBOARD_PAGE_LABELS[activePage]);
-	const activeLayout = $derived(activePage === 'admin' ? undefined : configuration?.pages[activePage]);
-
-	onMount(() => {
-		void loadConfiguration();
-	});
-
-	async function loadConfiguration() {
-		loading = true;
-		pageError = '';
-		try {
-			const response = await fetch('/api/configuration');
-			if (!response.ok) throw new Error('Your dashboard configuration could not be loaded.');
-			applyConfiguration((await response.json()) as EffectiveDashboardConfiguration);
-		} catch (error) {
-			pageError = error instanceof Error ? error.message : 'Your dashboard configuration could not be loaded.';
-		} finally {
-			loading = false;
-		}
-	}
+	const activeLayout = $derived(activePage === 'admin' ? undefined : configuration.pages[activePage]);
 
 	function applyConfiguration(value: EffectiveDashboardConfiguration) {
-		configuration = value.configuration;
-		configurationYaml = value.yaml;
-		configurationSource = value.source;
+		dashboardConfigurationOverride = {
+			userId: data.user.id,
+			serverFingerprint: serverConfigurationFingerprint,
+			value
+		};
 	}
 
 	async function openAdmin() {
@@ -281,19 +275,6 @@
 						</section>
 					{/if}
 				</div>
-			</section>
-		{:else if loading}
-			<div class="grid gap-5 lg:grid-cols-2" aria-label="Loading dashboard" aria-busy="true">
-				{#each [1, 2, 3, 4] as placeholder}
-					<div class="h-52 animate-pulse rounded-xl border border-border bg-card/70" aria-hidden="true"></div>
-				{/each}
-			</div>
-		{:else if pageError}
-			<section class="rounded-xl border border-border bg-card px-6 py-8 text-center" aria-live="polite">
-				<p class="text-sm text-destructive" role="alert">{pageError}</p>
-				<Button class="mt-4 gap-2" variant="outline" onclick={loadConfiguration}>
-					Try again <ArrowRight aria-hidden="true" size={14} />
-				</Button>
 			</section>
 		{:else if activeLayout}
 			<div class={`grid gap-5 ${activeLayout.columns.length === 2 ? 'lg:grid-cols-2' : activeLayout.columns.length === 3 ? 'lg:grid-cols-3' : ''}`}>

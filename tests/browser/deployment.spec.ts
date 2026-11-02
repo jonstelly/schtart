@@ -102,6 +102,12 @@ async function expectNoHorizontalOverflow(page: import('@playwright/test').Page)
 test(
 	'first setup, authentication, dashboard editing, and deployment entry points work in a browser',
 	async ({ page }) => {
+		const initialConfigurationGets: string[] = [];
+		page.on('request', (request) => {
+			if (request.url().endsWith('/api/configuration') && request.method() === 'GET') {
+				initialConfigurationGets.push(request.url());
+			}
+		});
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await page.goto('/');
 		await expect(page).toHaveURL(/\/setup$/);
@@ -119,6 +125,8 @@ test(
 		await expect(page).toHaveURL('/');
 		await expect(page.getByRole('button', { name: 'Admin' })).toBeVisible();
 		await expect(page.getByText('Following the shared default')).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'A clear start' })).toBeVisible();
+		expect(initialConfigurationGets).toEqual([]);
 
 		const pageNavigation = page.getByRole('navigation', { name: 'Main navigation' });
 		for (const label of ['Home', 'News', 'Sports', 'Monitoring']) {
