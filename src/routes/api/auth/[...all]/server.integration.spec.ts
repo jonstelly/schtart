@@ -96,6 +96,20 @@ describe('password registration', () => {
 		expect(await status.json()).toEqual({ configured: true });
 	});
 
+	it('accepts a password with exactly six characters', async () => {
+		const response = await signUp('sixchar', 'sixchar@example.test', { password: '123456' });
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({ user: { email: 'sixchar@example.test' } });
+	});
+
+	it('rejects a password shorter than six characters', async () => {
+		const response = await signUp('fivechar', 'fivechar@example.test', { password: '12345' });
+
+		expect(response.status).toBe(400);
+		expect(await db.select({ id: user.id }).from(user)).toEqual([]);
+	});
+
 	it('does not promote a user when credential persistence fails', async () => {
 		const removeFailure = await failAuthPersistenceOnInsert('account');
 		try {

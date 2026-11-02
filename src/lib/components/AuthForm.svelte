@@ -6,6 +6,7 @@
 	import { Input } from '#lib/components/ui/input';
 	import { Label } from '#lib/components/ui/label';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
+	import { MIN_PASSWORD_LENGTH } from '../password-policy';
 
 	let {
 		mode,
@@ -231,15 +232,15 @@
 								type="password"
 								bind:value={password}
 								autocomplete={isRegistration ? 'new-password' : 'current-password'}
-								placeholder="At least 12 characters"
+								placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
 								required
-								minlength={isRegistration ? 12 : undefined}
+								minlength={isRegistration ? MIN_PASSWORD_LENGTH : undefined}
 								aria-describedby={isRegistration ? 'password-hint' : undefined}
 								class="h-11 px-3"
 							/>
 							{#if isRegistration}
 								<p id="password-hint" class="text-xs leading-5 text-muted-foreground">
-									Use at least 12 characters.
+									Use at least {MIN_PASSWORD_LENGTH} characters.
 								</p>
 							{/if}
 						</div>
